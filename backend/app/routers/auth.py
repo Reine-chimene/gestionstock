@@ -17,7 +17,14 @@ from app.schemas.user import (
     UserUpdate,
     VerifyCode,
 )
-from app.services.email_service import EmailDeliveryError, create_verification_code, send_verification_email, verify_code
+from app.services.email_service import (
+    EmailDeliveryError,
+    create_verification_code,
+    email_dev_fallback,
+    send_verification_email,
+    smtp_configured,
+    verify_code,
+)
 from app.utils.auth import (
     create_access_token,
     get_current_user,
@@ -27,6 +34,22 @@ from app.utils.auth import (
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentification"])
+
+
+@router.get("/email-status")
+def email_status():
+    """Indique si les emails partent vraiment vers les clients (sans exposer les secrets)."""
+    dev = email_dev_fallback()
+    return {
+        "envoi_actif": not dev,
+        "mode": "smtp" if not dev else "dev",
+        "smtp_configure": smtp_configured(),
+        "message": (
+            "Les codes sont envoyes sur la boite mail du client."
+            if not dev
+            else "Mode test : les codes sont dans les logs Docker (docker logs cro_stock_api), pas par email."
+        ),
+    }
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
