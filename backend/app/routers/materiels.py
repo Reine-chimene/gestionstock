@@ -16,7 +16,7 @@ from app.utils.auth import get_current_user, require_roles
 
 router = APIRouter(prefix="/materiels", tags=["Materiels"])
 
-MATERIEL_FIELDS = ["designation", "matricule", "etat", "categorie", "numero_serie"]
+MATERIEL_FIELDS = ["designation", "matricule", "etat", "categorie", "numero_serie", "quantite"]
 
 
 @router.get("", response_model=list[MaterielResponse])

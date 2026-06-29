@@ -12,7 +12,7 @@ import { ETAT_LABELS, CATEGORIE_LABELS, formatDate } from '../utils/labels';
 
 const emptyForm = {
   designation: '', categorie: 'autre', marque: '', modele: '',
-  numero_serie: '', matricule: '', etat: 'disponible',
+  numero_serie: '', matricule: '', etat: 'neuf', quantite: '1',
   valeur_acquisition: '', caracteristiques: '', notes: '',
 };
 
@@ -59,6 +59,7 @@ export default function Materiels() {
       numero_serie: item.numero_serie || '',
       matricule: item.matricule,
       etat: item.etat,
+      quantite: String(item.quantite ?? 1),
       valeur_acquisition: item.valeur_acquisition || '',
       caracteristiques: item.caracteristiques || '',
       notes: item.notes || '',
@@ -74,6 +75,7 @@ export default function Materiels() {
     try {
       const payload = {
         ...form,
+        quantite: parseInt(form.quantite, 10) || 1,
         valeur_acquisition: form.valeur_acquisition ? parseFloat(form.valeur_acquisition) : null,
       };
       if (editItem) {
@@ -136,6 +138,7 @@ export default function Materiels() {
                 </div>
                 <div className="text-sm text-cro-muted space-y-1 mb-4">
                   <p>{CATEGORIE_LABELS[item.categorie]}</p>
+                  <p>Quantite : <strong>{item.quantite ?? 1}</strong></p>
                   {item.numero_serie && <p>N° {item.numero_serie}</p>}
                 </div>
                 <div className="flex gap-2 pt-3 border-t border-cro-sand">
@@ -167,6 +170,9 @@ export default function Materiels() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Matricule" value={form.matricule} onChange={update('matricule')} required disabled={!!editItem} />
+              <Input label="Quantite en stock" type="number" min="1" value={form.quantite} onChange={update('quantite')} required />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Numero de serie" value={form.numero_serie} onChange={update('numero_serie')} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -9,6 +9,7 @@ export const TYPE_DESTOCKAGE_LABELS = {
 };
 
 export const ETAT_LABELS = {
+  neuf: { label: 'Neuf', variant: 'gold' },
   disponible: { label: 'Disponible', variant: 'success' },
   affecte: { label: 'Affecte', variant: 'teal' },
   en_maintenance: { label: 'Maintenance', variant: 'warning' },

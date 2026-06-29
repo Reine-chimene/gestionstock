@@ -29,6 +29,7 @@ class DestockageOperation(Base):
     valeur_residuelle: Mapped[float | None] = mapped_column(Float, nullable=True)
     ancien_etat: Mapped[str] = mapped_column(String(50), nullable=False)
     nouveau_etat: Mapped[str] = mapped_column(String(50), nullable=False)
+    quantite: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     date_operation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     created_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

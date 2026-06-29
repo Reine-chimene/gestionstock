@@ -17,7 +17,7 @@ from app.utils.auth import get_current_user, require_roles
 
 router = APIRouter(prefix="/destockage", tags=["Destockage"])
 
-MATERIEL_FIELDS = ["id", "designation", "matricule", "etat", "categorie", "numero_serie"]
+MATERIEL_FIELDS = ["id", "designation", "matricule", "etat", "categorie", "numero_serie", "quantite"]
 
 TYPE_TO_ETAT = {
     TypeDestockage.REFORME: EtatMateriel.REFORME,
@@ -113,8 +113,17 @@ def create_destockage(
     if not materiel:
         raise HTTPException(status_code=404, detail="Materiel introuvable.")
 
-    if materiel.etat in (EtatMateriel.REFORME, EtatMateriel.HORS_SERVICE):
+    if materiel.quantite <= 0:
+        raise HTTPException(status_code=400, detail="Stock epuise pour ce materiel.")
+
+    if materiel.etat in (EtatMateriel.REFORME, EtatMateriel.HORS_SERVICE) and materiel.quantite <= 0:
         raise HTTPException(status_code=400, detail="Ce materiel est deja destocke.")
+
+    if data.quantite > materiel.quantite:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Quantite insuffisante. Stock disponible : {materiel.quantite}.",
+        )
 
     try:
         type_op = TypeDestockage(data.type_destockage)
@@ -122,11 +131,19 @@ def create_destockage(
         raise HTTPException(status_code=400, detail="Type de destockage invalide.") from exc
 
     ancien_etat = materiel.etat
-    nouveau_etat = TYPE_TO_ETAT[type_op]
+    target_etat = TYPE_TO_ETAT[type_op]
     old_snapshot = model_to_dict(materiel, MATERIEL_FIELDS)
 
-    _close_active_affectations(db, materiel.id, current_user.id)
-    _close_active_maintenances(db, materiel.id, current_user.id)
+    materiel.quantite -= data.quantite
+    stock_epuise = materiel.quantite == 0
+
+    if stock_epuise:
+        nouveau_etat = target_etat
+        _close_active_affectations(db, materiel.id, current_user.id)
+        _close_active_maintenances(db, materiel.id, current_user.id)
+        materiel.etat = nouveau_etat
+    else:
+        nouveau_etat = ancien_etat
 
     operation = DestockageOperation(
         materiel_id=materiel.id,
@@ -135,22 +152,27 @@ def create_destockage(
         document_reference=data.document_reference,
         notes=data.notes,
         valeur_residuelle=data.valeur_residuelle,
+        quantite=data.quantite,
         ancien_etat=ancien_etat.value,
-        nouveau_etat=nouveau_etat.value,
+        nouveau_etat=nouveau_etat.value if stock_epuise else ancien_etat.value,
         date_operation=data.date_operation or datetime.utcnow(),
         created_by=current_user.id,
     )
-    materiel.etat = nouveau_etat
     db.add(operation)
     db.flush()
 
+    detail = (
+        f"Destockage {type_op.value} — {materiel.matricule} x{data.quantite} : {data.motif[:120]}"
+        if not stock_epuise
+        else f"Destockage total {type_op.value} — {materiel.matricule} x{data.quantite} : {data.motif[:120]}"
+    )
     new_snapshot = model_to_dict(materiel, MATERIEL_FIELDS)
     log_historique(
         db,
         TypeEntite.DESTOCKAGE,
         operation.id,
         ActionHistorique.DESTOCKAGE,
-        f"Destockage {type_op.value} — {materiel.matricule} : {data.motif[:120]}",
+        detail,
         current_user.id,
         old_snapshot,
         new_snapshot,
@@ -160,7 +182,9 @@ def create_destockage(
         TypeEntite.MATERIEL,
         materiel.id,
         ActionHistorique.DESTOCKAGE,
-        f"Materiel destocke ({nouveau_etat.value}) via operation #{operation.id}",
+        f"Stock reduit de {data.quantite} (reste {materiel.quantite})"
+        if not stock_epuise
+        else f"Materiel destocke ({target_etat.value}) via operation #{operation.id}",
         current_user.id,
         old_snapshot,
         new_snapshot,

@@ -13,6 +13,7 @@ import { TYPE_DESTOCKAGE_LABELS, ETAT_LABELS, formatDate } from '../utils/labels
 const emptyForm = {
   materiel_id: '',
   type_destockage: 'reforme',
+  quantite: '1',
   motif: '',
   document_reference: '',
   notes: '',
@@ -20,6 +21,8 @@ const emptyForm = {
 };
 
 const DESTOCKE_ETATS = ['reforme', 'hors_service'];
+
+const isDestockable = (m) => (m.quantite ?? 1) > 0 && !DESTOCKE_ETATS.includes(m.etat);
 
 export default function Destockage() {
   const { canEdit } = useAuth();
@@ -38,7 +41,7 @@ export default function Destockage() {
     Promise.all([api.get(`/destockage${params}`), api.get('/materiels')])
       .then(([dest, mat]) => {
         setItems(dest.data);
-        setMateriels(mat.data.filter((m) => !DESTOCKE_ETATS.includes(m.etat)));
+        setMateriels(mat.data.filter(isDestockable));
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -52,6 +55,15 @@ export default function Destockage() {
     setModalOpen(true);
   };
 
+  const handleMaterielChange = (e) => {
+    const materielId = e.target.value;
+    setForm((prev) => ({
+      ...prev,
+      materiel_id: materielId,
+      quantite: '1',
+    }));
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -60,6 +72,7 @@ export default function Destockage() {
       await api.post('/destockage', {
         materiel_id: parseInt(form.materiel_id, 10),
         type_destockage: form.type_destockage,
+        quantite: parseInt(form.quantite, 10) || 1,
         motif: form.motif,
         document_reference: form.document_reference || null,
         notes: form.notes || null,
@@ -77,6 +90,9 @@ export default function Destockage() {
   const update = (field) => (e) => setForm({ ...form, [field]: e.target.value });
 
   const selectedMateriel = materiels.find((m) => String(m.id) === String(form.materiel_id));
+  const stockDisponible = selectedMateriel?.quantite ?? 0;
+  const quantiteDemandee = parseInt(form.quantite, 10) || 0;
+  const destockTotal = selectedMateriel && quantiteDemandee >= stockDisponible;
   const targetEtat = ['casse', 'perte', 'vol'].includes(form.type_destockage) ? 'hors_service' : 'reforme';
   const targetLabel = ETAT_LABELS[targetEtat]?.label || targetEtat;
 
@@ -122,7 +138,7 @@ export default function Destockage() {
                       {item.materiel?.designation || `Materiel #${item.materiel_id}`}
                     </h3>
                     <p className="text-sm text-cro-muted mt-1">
-                      Matricule {item.materiel?.matricule || '—'} — etait {ETAT_LABELS[item.ancien_etat]?.label || item.ancien_etat}
+                      Matricule {item.materiel?.matricule || '—'} — quantite : {item.quantite} — etait {ETAT_LABELS[item.ancien_etat]?.label || item.ancien_etat}
                     </p>
                     <p className="text-sm mt-3 bg-cro-cream rounded-lg p-3">{item.motif}</p>
                     {item.document_reference && (
@@ -147,14 +163,26 @@ export default function Destockage() {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Destocker un materiel">
         {error && <Alert type="error" message={error} onClose={() => setError('')} />}
         <form onSubmit={handleSave} className="section-gap">
-          <Select label="Materiel" value={form.materiel_id} onChange={update('materiel_id')} required>
+          <Select label="Materiel" value={form.materiel_id} onChange={handleMaterielChange} required>
             <option value="">Selectionner un materiel</option>
             {materiels.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.matricule} — {m.designation} ({ETAT_LABELS[m.etat]?.label || m.etat})
+                {m.matricule} — {m.designation} (stock: {m.quantite ?? 1}, {ETAT_LABELS[m.etat]?.label || m.etat})
               </option>
             ))}
           </Select>
+
+          {selectedMateriel && (
+            <Input
+              label={`Quantite a destocker (stock disponible : ${stockDisponible})`}
+              type="number"
+              min="1"
+              max={stockDisponible}
+              value={form.quantite}
+              onChange={update('quantite')}
+              required
+            />
+          )}
 
           <Select label="Type de destockage" value={form.type_destockage} onChange={update('type_destockage')} required>
             {Object.entries(TYPE_DESTOCKAGE_LABELS).map(([k, v]) => (
@@ -164,8 +192,17 @@ export default function Destockage() {
 
           {selectedMateriel && (
             <p className="text-sm bg-amber-50 border border-amber-100 rounded-xl p-3 text-amber-900">
-              Le materiel passera a l&apos;etat <strong>{targetLabel}</strong>.
-              Les affectations et maintenances actives seront cloturees automatiquement.
+              {destockTotal ? (
+                <>
+                  Destockage total : le materiel passera a l&apos;etat <strong>{targetLabel}</strong>.
+                  Les affectations et maintenances actives seront cloturees.
+                </>
+              ) : (
+                <>
+                  Destockage partiel de <strong>{quantiteDemandee || '?'}</strong> unite(s).
+                  Il restera <strong>{Math.max(stockDisponible - quantiteDemandee, 0)}</strong> en stock — l&apos;etat ne change pas.
+                </>
+              )}
             </p>
           )}
 

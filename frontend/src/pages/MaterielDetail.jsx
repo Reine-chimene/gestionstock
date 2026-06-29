@@ -25,7 +25,7 @@ export default function MaterielDetail() {
   const [qrUrl, setQrUrl] = useState('');
   const [showQr, setShowQr] = useState(false);
   const [destockModal, setDestockModal] = useState(false);
-  const [destockForm, setDestockForm] = useState({ type_destockage: 'reforme', motif: '', document_reference: '', notes: '', valeur_residuelle: '' });
+  const [destockForm, setDestockForm] = useState({ type_destockage: 'reforme', quantite: '1', motif: '', document_reference: '', notes: '', valeur_residuelle: '' });
   const [destockError, setDestockError] = useState('');
   const [destockSaving, setDestockSaving] = useState(false);
 
@@ -65,8 +65,11 @@ export default function MaterielDetail() {
   if (!materiel) return <Layout><p>Materiel introuvable</p></Layout>;
 
   const etat = ETAT_LABELS[materiel.etat] || ETAT_LABELS.disponible;
-  const canDestock = canEdit && !['reforme', 'hors_service'].includes(materiel.etat);
+  const canDestock = canEdit && (materiel.quantite ?? 1) > 0 && !['reforme', 'hors_service'].includes(materiel.etat);
   const destockTarget = ['casse', 'perte', 'vol'].includes(destockForm.type_destockage) ? 'hors_service' : 'reforme';
+  const stockDisponible = materiel.quantite ?? 1;
+  const quantiteDemandee = parseInt(destockForm.quantite, 10) || 0;
+  const destockTotal = quantiteDemandee >= stockDisponible;
 
   const handleDestock = async (e) => {
     e.preventDefault();
@@ -76,13 +79,15 @@ export default function MaterielDetail() {
       await api.post('/destockage', {
         materiel_id: parseInt(id, 10),
         type_destockage: destockForm.type_destockage,
+        quantite: parseInt(destockForm.quantite, 10) || 1,
         motif: destockForm.motif,
         document_reference: destockForm.document_reference || null,
         notes: destockForm.notes || null,
         valeur_residuelle: destockForm.valeur_residuelle ? parseFloat(destockForm.valeur_residuelle) : null,
       });
       setDestockModal(false);
-      navigate('/destockage');
+      const res = await api.get(`/materiels/${id}`);
+      setMateriel(res.data);
     } catch (err) {
       setDestockError(err.response?.data?.detail || 'Erreur');
     } finally {
@@ -120,6 +125,7 @@ export default function MaterielDetail() {
             </div>
             <div className="grid sm:grid-cols-2 gap-3 text-sm">
               <p><span className="text-cro-muted">Categorie :</span> {CATEGORIE_LABELS[materiel.categorie]}</p>
+              <p><span className="text-cro-muted">Quantite en stock :</span> <strong>{materiel.quantite ?? 1}</strong></p>
               <p><span className="text-cro-muted">N° serie :</span> {materiel.numero_serie || '—'}</p>
               <p><span className="text-cro-muted">Marque :</span> {materiel.marque || '—'} {materiel.modele}</p>
               <p><span className="text-cro-muted">Valeur :</span> {materiel.valeur_acquisition ? `${materiel.valeur_acquisition} FCFA` : '—'}</p>
@@ -181,9 +187,21 @@ export default function MaterielDetail() {
       <Modal isOpen={destockModal} onClose={() => setDestockModal(false)} title="Destocker ce materiel">
         {destockError && <Alert type="error" message={destockError} onClose={() => setDestockError('')} />}
         <form onSubmit={handleDestock} className="section-gap">
-          <p className="text-sm bg-amber-50 border border-amber-100 rounded-xl p-3 text-amber-900">
-            {materiel.matricule} passera a l&apos;etat <strong>{ETAT_LABELS[destockTarget]?.label}</strong>.
+          <p className="text-sm bg-amber-50 border border-amber-100 rounded-xl p-3 text-amber-900 mb-4">
+            Stock actuel : <strong>{stockDisponible}</strong>
+            {destockTotal
+              ? <> — destockage total, passage a l&apos;etat <strong>{ETAT_LABELS[destockTarget]?.label}</strong>.</>
+              : <> — destockage partiel, le stock sera reduit.</>}
           </p>
+          <Input
+            label="Quantite a destocker"
+            type="number"
+            min="1"
+            max={stockDisponible}
+            value={destockForm.quantite}
+            onChange={(e) => setDestockForm({ ...destockForm, quantite: e.target.value })}
+            required
+          />
           <Select label="Type" value={destockForm.type_destockage} onChange={(e) => setDestockForm({ ...destockForm, type_destockage: e.target.value })} required>
             {Object.entries(TYPE_DESTOCKAGE_LABELS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </Select>

@@ -81,6 +81,12 @@ async def create_affectation(
     if active:
         raise HTTPException(status_code=400, detail="Ce materiel a deja une affectation active.")
 
+    if materiel.etat not in (EtatMateriel.DISPONIBLE, EtatMateriel.NEUF):
+        raise HTTPException(status_code=400, detail="Ce materiel n'est pas disponible pour affectation.")
+
+    if materiel.quantite <= 0:
+        raise HTTPException(status_code=400, detail="Stock epuise pour ce materiel.")
+
     affectation = Affectation(**data.model_dump(), created_by=current_user.id)
     materiel.etat = EtatMateriel.AFFECTE
     db.add(affectation)

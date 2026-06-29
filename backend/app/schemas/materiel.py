@@ -9,7 +9,8 @@ class MaterielCreate(BaseModel):
     modele: str | None = None
     numero_serie: str | None = None
     matricule: str = Field(..., min_length=2, max_length=50)
-    etat: str = "disponible"
+    etat: str = "neuf"
+    quantite: int = Field(1, ge=1)
     valeur_acquisition: float | None = None
     date_acquisition: datetime | None = None
     caracteristiques: str | None = None
@@ -24,6 +25,7 @@ class MaterielUpdate(BaseModel):
     numero_serie: str | None = None
     matricule: str | None = None
     etat: str | None = None
+    quantite: int | None = Field(None, ge=0)
     valeur_acquisition: float | None = None
     date_acquisition: datetime | None = None
     caracteristiques: str | None = None
@@ -39,6 +41,7 @@ class MaterielResponse(BaseModel):
     numero_serie: str | None
     matricule: str
     etat: str
+    quantite: int
     valeur_acquisition: float | None
     date_acquisition: datetime | None
     caracteristiques: str | None

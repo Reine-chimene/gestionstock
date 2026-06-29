@@ -7,6 +7,7 @@ class DestockageCreate(BaseModel):
     materiel_id: int
     type_destockage: str = Field(..., min_length=3)
     motif: str = Field(..., min_length=5)
+    quantite: int = Field(1, ge=1)
     document_reference: str | None = None
     notes: str | None = None
     valeur_residuelle: float | None = Field(None, ge=0)
@@ -20,6 +21,7 @@ class MaterielBrief(BaseModel):
     numero_serie: str | None
     etat: str
     categorie: str
+    quantite: int
 
     class Config:
         from_attributes = True
@@ -35,6 +37,7 @@ class DestockageResponse(BaseModel):
     valeur_residuelle: float | None
     ancien_etat: str
     nouveau_etat: str
+    quantite: int
     date_operation: datetime
     created_at: datetime
     materiel: MaterielBrief | None = None

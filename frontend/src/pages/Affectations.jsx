@@ -9,7 +9,7 @@ import SignaturePad from '../components/SignaturePad';
 import { ExportBon } from '../components/ExportMenu';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { STATUT_AFFECTATION_LABELS, formatDate } from '../utils/labels';
+import { STATUT_AFFECTATION_LABELS, ETAT_LABELS, formatDate } from '../utils/labels';
 
 const emptyForm = {
   materiel_id: '', lieu_id: '', beneficiaire: '', raison: '',
@@ -35,12 +35,16 @@ export default function Affectations() {
     const params = filterStatut ? `?statut=${filterStatut}` : '';
     Promise.all([
       api.get(`/affectations${params}`),
-      api.get('/materiels?etat=disponible'),
+      api.get('/materiels'),
       api.get('/lieux'),
     ])
       .then(([aff, mat, lieuxRes]) => {
         setItems(aff.data);
-        setMateriels(mat.data);
+        setMateriels(
+          mat.data.filter(
+            (m) => ['disponible', 'neuf'].includes(m.etat) && (m.quantite ?? 1) > 0,
+          ),
+        );
         setLieux(lieuxRes.data);
       })
       .catch(console.error)
@@ -154,7 +158,7 @@ export default function Affectations() {
               <option value="">-- Choisir un materiel --</option>
               {materiels.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.designation} ({m.matricule})
+                  {m.designation} ({m.matricule}, {ETAT_LABELS[m.etat]?.label || m.etat}, stock: {m.quantite ?? 1})
                 </option>
               ))}
             </Select>

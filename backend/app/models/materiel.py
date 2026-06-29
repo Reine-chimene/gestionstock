@@ -8,6 +8,7 @@ from app.database import Base, pg_enum
 
 
 class EtatMateriel(str, enum.Enum):
+    NEUF = "neuf"
     DISPONIBLE = "disponible"
     AFFECTE = "affecte"
     EN_MAINTENANCE = "en_maintenance"
@@ -35,7 +36,8 @@ class Materiel(Base):
     modele: Mapped[str | None] = mapped_column(String(100), nullable=True)
     numero_serie: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True, index=True)
     matricule: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
-    etat: Mapped[EtatMateriel] = mapped_column(pg_enum(EtatMateriel, "etatmateriel"), default=EtatMateriel.DISPONIBLE)
+    etat: Mapped[EtatMateriel] = mapped_column(pg_enum(EtatMateriel, "etatmateriel"), default=EtatMateriel.NEUF)
+    quantite: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     valeur_acquisition: Mapped[float | None] = mapped_column(Float, nullable=True)
     date_acquisition: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     caracteristiques: Mapped[str | None] = mapped_column(Text, nullable=True)
