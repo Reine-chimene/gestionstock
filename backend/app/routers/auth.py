@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.schemas.user import (
@@ -65,23 +66,28 @@ async def register(data: UserRegister, db: Annotated[Session, Depends(get_db)]):
         hashed_password=hash_password(data.password),
         service=data.service,
         telephone=data.telephone,
-        is_active=False,
-        is_verified=False,
+        is_active=not settings.require_email_verification,
+        is_verified=not settings.require_email_verification,
     )
     db.add(user)
     db.commit()
 
-    code = create_verification_code(db, data.email, "register")
-    try:
-        await send_verification_email(data.email, code, "register", f"{data.prenom} {data.nom}")
-    except EmailDeliveryError:
-        raise HTTPException(
-            status_code=503,
-            detail="Compte cree mais l'email n'a pas pu etre envoye. Utilisez « Renvoyer le code » sur la page de validation.",
-        )
+    if settings.require_email_verification:
+        code = create_verification_code(db, data.email, "register")
+        try:
+            await send_verification_email(data.email, code, "register", f"{data.prenom} {data.nom}")
+        except EmailDeliveryError:
+            raise HTTPException(
+                status_code=503,
+                detail="Compte cree mais l'email n'a pas pu etre envoye. Utilisez « Renvoyer le code » sur la page de validation.",
+            )
+        return {
+            "message": "Inscription enregistree. Verifiez votre email pour le code de validation.",
+            "email": data.email,
+        }
 
     return {
-        "message": "Inscription enregistree. Verifiez votre email pour le code de validation.",
+        "message": "Compte cree avec succes ! Vous pouvez vous connecter.",
         "email": data.email,
     }
 

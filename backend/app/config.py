@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     smtp_from: str = "Conseil Regional Ouest <noreply@cro.cm>"
     smtp_use_ssl: bool = False
     email_dev_mode: bool = True
+    require_email_verification: bool = False
     frontend_url: str = "http://localhost:5181"
 
     verification_code_expire_minutes: int = 15

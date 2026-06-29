@@ -28,8 +28,8 @@ export default function Register() {
         password: form.password,
         service: form.service.trim() || null,
       });
-      setSuccess('Compte cree ! Un code de validation a ete envoye a votre adresse email.');
-      setTimeout(() => navigate('/verify', { state: { email: form.email.trim().toLowerCase() } }), 1500);
+      setSuccess('Compte cree ! Vous pouvez vous connecter.');
+      setTimeout(() => navigate('/login'), 1500);
     } catch (err) {
       setError(formatApiError(err, 'Erreur lors de l\'inscription'));
     } finally {

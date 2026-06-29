@@ -56,9 +56,8 @@ export default function Login() {
         </Button>
       </form>
 
-      <div className="mt-8 pt-6 border-t border-cro-sand text-center space-y-2 text-sm text-cro-muted">
+      <div className="mt-8 pt-6 border-t border-cro-sand text-center text-sm text-cro-muted">
         <p>Pas de compte ? <Link to="/register" className="text-cro-teal font-semibold hover:underline">Creer un compte</Link></p>
-        <p><Link to="/verify" className="text-cro-teal hover:underline">Valider avec un code email</Link></p>
       </div>
 
       <p className="mt-4 text-center text-xs text-cro-muted/70 bg-cro-cream rounded-lg py-2">
