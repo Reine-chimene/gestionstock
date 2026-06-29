@@ -5,6 +5,7 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import { Alert } from '../components/Modal';
 import api from '../services/api';
+import { formatApiError } from '../utils/apiError';
 
 export default function Register() {
   const [form, setForm] = useState({ email: '', nom: '', prenom: '', password: '', confirmPassword: '', service: '' });
@@ -20,11 +21,17 @@ export default function Register() {
     setLoading(true);
     setError('');
     try {
-      await api.post('/auth/register', { email: form.email, nom: form.nom, prenom: form.prenom, password: form.password, service: form.service || null });
+      await api.post('/auth/register', {
+        email: form.email.trim().toLowerCase(),
+        nom: form.nom.trim(),
+        prenom: form.prenom.trim(),
+        password: form.password,
+        service: form.service.trim() || null,
+      });
       setSuccess('Compte cree ! Verifiez votre email.');
-      setTimeout(() => navigate('/verify', { state: { email: form.email } }), 1500);
+      setTimeout(() => navigate('/verify', { state: { email: form.email.trim().toLowerCase() } }), 1500);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Erreur');
+      setError(formatApiError(err, 'Erreur lors de l\'inscription'));
     } finally {
       setLoading(false);
     }

@@ -35,9 +35,10 @@ export function LoadingSpinner() {
 
 export function Alert({ type = 'info', message, onClose }) {
   const cls = { info: 'alert-info', success: 'alert-success', error: 'alert-error', warning: 'alert-warning' };
+  const text = typeof message === 'string' ? message : String(message ?? '');
   return (
     <div className={cls[type] || cls.info}>
-      <p>{message}</p>
+      <p>{text}</p>
       {onClose && <button onClick={onClose} className="modal-close !p-1"><X size={16} /></button>}
     </div>
   );

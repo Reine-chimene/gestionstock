@@ -6,6 +6,7 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import { Alert } from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
+import { formatApiError } from '../utils/apiError';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -21,10 +22,15 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email.trim(), password);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Email ou mot de passe incorrect');
+      const status = err.response?.status;
+      if (status === 403) {
+        setError('Compte non valide. Validez votre email avec le code recu.');
+      } else {
+        setError(formatApiError(err, 'Email ou mot de passe incorrect'));
+      }
     } finally {
       setLoading(false);
     }
