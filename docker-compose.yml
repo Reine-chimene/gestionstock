@@ -23,13 +23,12 @@ services:
       dockerfile: Dockerfile
     container_name: cro_stock_api
     restart: unless-stopped
+    env_file:
+      - ./backend/.env
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://cro:cro_secret_2024@db:5432/stock_cro
-      SECRET_KEY: change-me-in-production-use-long-random-string
-      EMAIL_DEV_MODE: "true"
-      FRONTEND_URL: http://localhost:5181
       UPLOAD_DIR: /app/uploads
     volumes:
       - ./backend:/app
