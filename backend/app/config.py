@@ -7,11 +7,12 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 480
 
-    smtp_host: str = "smtp.gmail.com"
+    smtp_host: str = "smtp.hostinger.com"
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = "Conseil Regional Ouest <noreply@cro.cm>"
+    smtp_use_ssl: bool = False
     email_dev_mode: bool = True
     frontend_url: str = "http://localhost:5181"
 

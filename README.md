@@ -25,6 +25,22 @@ docker compose up --build
 
 Compte demo : `admin@cro.cm` / `admin123`
 
+## Emails de validation (production VPS)
+
+Pour que **le client recoive le code sur son adresse email** (Gmail, Yahoo, etc.) :
+
+1. Hostinger hPanel → **Emails** → creer `noreply@votredomaine.com`
+2. Sur le VPS :
+   ```bash
+   cp backend/.env.example backend/.env
+   nano backend/.env
+   ```
+3. Renseigner `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` et mettre `EMAIL_DEV_MODE=false`
+4. Redemarrer : `docker compose up --build -d`
+5. Verifier les logs : `docker logs cro_stock_api` doit afficher `EMAIL : envoi actif via smtp.hostinger.com`
+
+Tant que `EMAIL_DEV_MODE=true`, aucun email n'est envoye au client (code visible uniquement dans les logs).
+
 ## Demarrage manuel
 
 ### 1. Base de donnees

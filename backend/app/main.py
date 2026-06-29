@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models.user import User, UserRole
 from app.routers import affectations, auth, dashboard, destockage, exports, inventaires, lieux, maintenance, materiels, reports
+from app.services.email_service import email_dev_fallback, smtp_configured
 from app.services.storage_service import ensure_upload_dirs
 from app.utils.auth import hash_password
 
@@ -39,6 +40,10 @@ def seed_admin():
 async def lifespan(app: FastAPI):
     ensure_upload_dirs()
     seed_admin()
+    if email_dev_fallback():
+        print("EMAIL : mode dev (codes dans les logs Docker)")
+    elif smtp_configured():
+        print(f"EMAIL : envoi actif via {settings.smtp_host} → boite du client")
     yield
 
 

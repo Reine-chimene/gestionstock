@@ -17,7 +17,7 @@ from app.schemas.user import (
     UserUpdate,
     VerifyCode,
 )
-from app.services.email_service import create_verification_code, send_verification_email, verify_code
+from app.services.email_service import EmailDeliveryError, create_verification_code, send_verification_email, verify_code
 from app.utils.auth import (
     create_access_token,
     get_current_user,
@@ -49,7 +49,13 @@ async def register(data: UserRegister, db: Annotated[Session, Depends(get_db)]):
     db.commit()
 
     code = create_verification_code(db, data.email, "register")
-    await send_verification_email(data.email, code, "register", f"{data.prenom} {data.nom}")
+    try:
+        await send_verification_email(data.email, code, "register", f"{data.prenom} {data.nom}")
+    except EmailDeliveryError:
+        raise HTTPException(
+            status_code=503,
+            detail="Compte cree mais l'email n'a pas pu etre envoye. Utilisez « Renvoyer le code » sur la page de validation.",
+        )
 
     return {
         "message": "Inscription enregistree. Verifiez votre email pour le code de validation.",
@@ -106,7 +112,13 @@ async def resend_code(data: ResendCode, db: Annotated[Session, Depends(get_db)])
     purpose = "invite" if verify_password("temporal123!", user.hashed_password) else "register"
 
     code = create_verification_code(db, data.email, purpose)
-    await send_verification_email(data.email, code, purpose, f"{user.prenom} {user.nom}")
+    try:
+        await send_verification_email(data.email, code, purpose, f"{user.prenom} {user.nom}")
+    except EmailDeliveryError:
+        raise HTTPException(
+            status_code=503,
+            detail="Impossible d'envoyer l'email. Verifiez la configuration SMTP du serveur.",
+        )
 
     return {"message": "Nouveau code envoye par email."}
 
@@ -165,7 +177,13 @@ async def invite_user(
     db.commit()
 
     code = create_verification_code(db, data.email, "invite")
-    await send_verification_email(data.email, code, "invite", f"{data.prenom} {data.nom}")
+    try:
+        await send_verification_email(data.email, code, "invite", f"{data.prenom} {data.nom}")
+    except EmailDeliveryError:
+        raise HTTPException(
+            status_code=503,
+            detail="Invitation creee mais l'email n'a pas pu etre envoye. Verifiez la configuration SMTP.",
+        )
 
     return {
         "message": f"Invitation envoyee a {data.email}. Le membre doit valider avec le code recu.",

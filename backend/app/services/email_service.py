@@ -11,8 +11,21 @@ from app.config import settings
 from app.models.user import VerificationCode
 
 
+class EmailDeliveryError(Exception):
+    """Erreur lors de l'envoi SMTP vers la boite du client."""
+
+
 def generate_code() -> str:
     return "".join(random.choices(string.digits, k=6))
+
+
+def smtp_configured() -> bool:
+    return bool(settings.smtp_user and settings.smtp_password)
+
+
+def email_dev_fallback() -> bool:
+    """True = code affiche dans les logs, pas d'email au client."""
+    return settings.email_dev_mode or not smtp_configured()
 
 
 def create_verification_code(db: Session, email: str, purpose: str) -> str:
@@ -53,6 +66,39 @@ def verify_code(db: Session, email: str, code: str, purpose: str) -> bool:
     return True
 
 
+async def _deliver_email(to: str, subject: str, body_text: str, html_body: str | None = None) -> None:
+    if email_dev_fallback():
+        print(f"\n{'='*50}")
+        print(f"EMAIL DEV MODE - Destinataire : {to}")
+        print(f"Sujet : {subject}")
+        print(body_text)
+        print(f"{'='*50}\n")
+        return
+
+    message = MIMEMultipart("alternative")
+    message["From"] = settings.smtp_from
+    message["To"] = to
+    message["Subject"] = subject
+    message.attach(MIMEText(body_text, "plain"))
+    if html_body:
+        message.attach(MIMEText(html_body, "html"))
+
+    try:
+        await aiosmtplib.send(
+            message,
+            hostname=settings.smtp_host,
+            port=settings.smtp_port,
+            username=settings.smtp_user,
+            password=settings.smtp_password,
+            start_tls=not settings.smtp_use_ssl,
+            use_tls=settings.smtp_use_ssl,
+        )
+        print(f"Email envoye a {to}")
+    except Exception as exc:
+        print(f"ERREUR ENVOI EMAIL → {to} : {exc}")
+        raise EmailDeliveryError(f"Envoi impossible vers {to}") from exc
+
+
 async def send_verification_email(email: str, code: str, purpose: str, nom: str = "") -> None:
     if purpose == "register":
         subject = "Validation de votre compte - Conseil Regional de l'Ouest"
@@ -84,71 +130,29 @@ Ce code expire dans {settings.verification_code_expire_minutes} minutes.
 Conseil Regional de l'Ouest
 """
 
-    if settings.email_dev_mode or not settings.smtp_user:
-        print(f"\n{'='*50}")
-        print(f"EMAIL DEV MODE - Code pour {email}: {code}")
-        print(f"{'='*50}\n")
-        return
-
-    message = MIMEMultipart("alternative")
-    message["From"] = settings.smtp_from
-    message["To"] = email
-    message["Subject"] = subject
-
     html = f"""
     <html>
     <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: #1e40af; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+        <div style="background: #0B3D3D; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
             <h1 style="margin: 0; font-size: 24px;">Conseil Regional de l'Ouest</h1>
             <p style="margin: 5px 0 0;">Gestion de Stock</p>
         </div>
-        <div style="background: #f8fafc; padding: 30px; border-radius: 0 0 8px 8px;">
+        <div style="background: #FAF8F4; padding: 30px; border-radius: 0 0 8px 8px;">
             <p style="font-size: 16px; color: #334155;">{intro}</p>
             <p style="font-size: 16px; color: #334155;">Votre code de validation :</p>
-            <div style="background: white; border: 2px solid #1e40af; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
-                <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1e40af;">{code}</span>
+            <div style="background: white; border: 2px solid #0B3D3D; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
+                <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #0B3D3D;">{code}</span>
             </div>
             <p style="font-size: 14px; color: #64748b;">Ce code expire dans {settings.verification_code_expire_minutes} minutes.</p>
         </div>
     </body>
     </html>
     """
-    message.attach(MIMEText(body_text, "plain"))
-    message.attach(MIMEText(html, "html"))
-
-    await aiosmtplib.send(
-        message,
-        hostname=settings.smtp_host,
-        port=settings.smtp_port,
-        username=settings.smtp_user,
-        password=settings.smtp_password,
-        start_tls=True,
-    )
+    await _deliver_email(email, subject, body_text, html)
 
 
 async def _send_email(to: str, subject: str, body_text: str, html_body: str) -> None:
-    if settings.email_dev_mode or not settings.smtp_user:
-        print(f"\n{'='*50}")
-        print(f"EMAIL DEV → {to}")
-        print(f"Sujet: {subject}")
-        print(body_text)
-        print(f"{'='*50}\n")
-        return
-
-    message = MIMEMultipart("alternative")
-    message["From"] = settings.smtp_from
-    message["To"] = to
-    message["Subject"] = subject
-    message.attach(MIMEText(body_text, "plain"))
-    message.attach(MIMEText(html_body, "html"))
-    await aiosmtplib.send(
-        message,
-        hostname=settings.smtp_host,
-        port=settings.smtp_port,
-        username=settings.smtp_user,
-        password=settings.smtp_password,
-        start_tls=True,
-    )
+    await _deliver_email(to, subject, body_text, html_body)
 
 
 async def send_affectation_notification(
@@ -194,4 +198,3 @@ async def send_maintenance_alert(
     body = f"Maintenance prevue pour « {materiel_designation} » ({matricule}).\nType : {type_maintenance}\nDate : {date_prevue}"
     html = f"<p>{body.replace(chr(10), '<br>')}</p>"
     await _send_email(to_email, subject, body, html)
-

@@ -28,7 +28,7 @@ export default function Register() {
         password: form.password,
         service: form.service.trim() || null,
       });
-      setSuccess('Compte cree ! Verifiez votre email.');
+      setSuccess('Compte cree ! Un code de validation a ete envoye a votre adresse email.');
       setTimeout(() => navigate('/verify', { state: { email: form.email.trim().toLowerCase() } }), 1500);
     } catch (err) {
       setError(formatApiError(err, 'Erreur lors de l\'inscription'));

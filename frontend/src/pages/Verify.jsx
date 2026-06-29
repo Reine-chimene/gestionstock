@@ -130,7 +130,8 @@ export default function Verify() {
           {resending ? 'Envoi en cours...' : 'Renvoyer le code'}
         </button>
         <p className="text-xs text-cro-muted/80 bg-cro-cream rounded-lg py-2 px-3">
-          Pas recu d&apos;email ? Sur le serveur, le code est affiche dans les logs : <code>docker logs cro_stock_api</code>
+          Verifiez votre boite de reception et le dossier <strong>Spam / Courrier indesirable</strong>.
+          Le code expire au bout de 15 minutes.
         </p>
       </div>
 
