@@ -27,7 +27,10 @@ export default function Login() {
     } catch (err) {
       const status = err.response?.status;
       if (status === 403) {
-        setError('Compte non valide. Validez votre email avec le code recu.');
+        setError('Compte non valide. Validez votre email avec le code recu avant de vous connecter.');
+        navigate('/verify', { state: { email: email.trim().toLowerCase() } });
+      } else if (!err.response) {
+        setError('Serveur injoignable. Verifiez que Docker tourne sur le VPS.');
       } else {
         setError(formatApiError(err, 'Email ou mot de passe incorrect'));
       }
