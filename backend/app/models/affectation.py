@@ -35,3 +35,6 @@ class Affectation(Base):
 
     materiel: Mapped["Materiel"] = relationship("Materiel", back_populates="affectations")
     lieu: Mapped["Lieu"] = relationship("Lieu", back_populates="affectations")
+    documents: Mapped[list["AffectationDocument"]] = relationship(
+        "AffectationDocument", back_populates="affectation", cascade="all, delete-orphan"
+    )

@@ -59,6 +59,16 @@ def get_stats(db: Session = Depends(get_db), current_user: User = Depends(get_cu
         .all()
     )
 
+    stock_bas = (
+        db.query(func.count(Materiel.id))
+        .filter(
+            Materiel.seuil_alerte.isnot(None),
+            Materiel.quantite <= Materiel.seuil_alerte,
+            Materiel.etat.notin_([EtatMateriel.REFORME, EtatMateriel.HORS_SERVICE]),
+        )
+        .scalar()
+    )
+
     return {
         "total_materiels": total_materiels,
         "disponibles": disponibles,
@@ -66,6 +76,7 @@ def get_stats(db: Session = Depends(get_db), current_user: User = Depends(get_cu
         "en_maintenance": en_maintenance,
         "reformes": reformes,
         "hors_service": hors_service,
+        "stock_bas": stock_bas,
         "destockages_total": destockages_total,
         "destockages_mois": destockages_mois,
         "total_lieux": total_lieux,

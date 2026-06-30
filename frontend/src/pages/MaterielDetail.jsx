@@ -8,7 +8,7 @@ import Input, { Select, Textarea } from '../components/Input';
 import Badge from '../components/Badge';
 import Modal, { LoadingSpinner, Alert } from '../components/Modal';
 import { ExportBon } from '../components/ExportMenu';
-import { ETAT_LABELS, CATEGORIE_LABELS, TYPE_DESTOCKAGE_LABELS, formatDate } from '../utils/labels';
+import { ETAT_LABELS, CATEGORIE_LABELS, TYPE_DESTOCKAGE_LABELS, ACTION_LABELS, formatDate } from '../utils/labels';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -125,7 +125,14 @@ export default function MaterielDetail() {
             </div>
             <div className="grid sm:grid-cols-2 gap-3 text-sm">
               <p><span className="text-cro-muted">Categorie :</span> {CATEGORIE_LABELS[materiel.categorie]}</p>
-              <p><span className="text-cro-muted">Quantite en stock :</span> <strong>{materiel.quantite ?? 1}</strong></p>
+              <p><span className="text-cro-muted">Quantite en stock :</span> <strong>{materiel.quantite ?? 1}</strong>
+                {materiel.seuil_alerte != null && materiel.quantite <= materiel.seuil_alerte && (
+                  <span className="ml-2"><Badge variant="warning">Stock bas</Badge></span>
+                )}
+              </p>
+              {materiel.seuil_alerte != null && (
+                <p><span className="text-cro-muted">Seuil d'alerte :</span> {materiel.seuil_alerte}</p>
+              )}
               <p><span className="text-cro-muted">N° serie :</span> {materiel.numero_serie || '—'}</p>
               <p><span className="text-cro-muted">Marque :</span> {materiel.marque || '—'} {materiel.modele}</p>
               <p><span className="text-cro-muted">Valeur :</span> {materiel.valeur_acquisition ? `${materiel.valeur_acquisition} FCFA` : '—'}</p>
@@ -147,13 +154,17 @@ export default function MaterielDetail() {
           )}
 
           <div className="card-accent card-body">
-            <h3 className="card-title mb-4 flex items-center gap-2"><History size={18} /> Historique</h3>
+            <h3 className="card-title mb-4 flex items-center gap-2"><History size={18} /> Historique complet</h3>
             <div>
               {historique.map((h) => (
                 <div key={h.id} className="timeline-item">
                   <div className="timeline-dot" />
+                  <div className="flex flex-wrap gap-2 mb-1">
+                    <Badge variant="teal">{h.entity_type}</Badge>
+                    <Badge variant="muted">{ACTION_LABELS[h.action] || h.action}</Badge>
+                  </div>
                   <p className="timeline-text">{h.description}</p>
-                  <p className="timeline-meta">{formatDate(h.created_at)} — {h.action}</p>
+                  <p className="timeline-meta">{formatDate(h.created_at)} — {h.user_name || 'Systeme'}</p>
                 </div>
               ))}
               {historique.length === 0 && <p className="text-cro-muted text-sm">Aucun historique</p>}

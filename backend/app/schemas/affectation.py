@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class AffectationCreate(BaseModel):
@@ -25,6 +25,11 @@ class LieuBrief(BaseModel):
     nom: str
     type_lieu: str
 
+    @field_validator("type_lieu", mode="before")
+    @classmethod
+    def enum_to_str(cls, value):
+        return value.value if hasattr(value, "value") else value
+
     class Config:
         from_attributes = True
 
@@ -36,8 +41,20 @@ class MaterielBrief(BaseModel):
     numero_serie: str | None
     etat: str
 
+    @field_validator("etat", mode="before")
+    @classmethod
+    def enum_to_str(cls, value):
+        return value.value if hasattr(value, "value") else value
+
     class Config:
         from_attributes = True
+
+
+class AffectationDocumentBrief(BaseModel):
+    id: int
+    url: str
+    caption: str | None
+    created_at: datetime
 
 
 class AffectationResponse(BaseModel):
@@ -51,9 +68,17 @@ class AffectationResponse(BaseModel):
     date_fin: datetime | None
     document_reference: str | None
     notes: str | None
+    signataire_nom: str | None = None
+    date_signature: datetime | None = None
     created_at: datetime
     materiel: MaterielBrief | None = None
     lieu: LieuBrief | None = None
+    documents: list[AffectationDocumentBrief] = []
+
+    @field_validator("statut", mode="before")
+    @classmethod
+    def enum_to_str(cls, value):
+        return value.value if hasattr(value, "value") else value
 
     class Config:
         from_attributes = True

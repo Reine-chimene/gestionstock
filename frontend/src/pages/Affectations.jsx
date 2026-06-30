@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, ArrowRightLeft, CheckCircle, PenLine } from 'lucide-react';
+import { Plus, ArrowRightLeft, CheckCircle, PenLine, Camera, Paperclip } from 'lucide-react';
 import Layout from '../components/Layout';
 import Button from '../components/Button';
 import Input, { Select, Textarea } from '../components/Input';
@@ -29,6 +29,7 @@ export default function Affectations() {
   const [saving, setSaving] = useState(false);
   const [sigModal, setSigModal] = useState(null);
   const [signataire, setSignataire] = useState('');
+  const [detailItem, setDetailItem] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -98,6 +99,22 @@ export default function Affectations() {
     load();
   };
 
+  const uploadDocument = async (affectationId, e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('caption', file.name);
+    await api.post(`/affectations/${affectationId}/documents`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    load();
+    if (detailItem?.id === affectationId) {
+      const res = await api.get(`/affectations/${affectationId}`);
+      setDetailItem(res.data);
+    }
+  };
+
   return (
     <Layout title="Affectations" subtitle="Suivi du materiel confie aux beneficiaires">
       {canEdit && (
@@ -136,9 +153,14 @@ export default function Affectations() {
                     <p className="mt-2 text-sm bg-cro-cream rounded-lg p-3">{item.raison}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <Button variant="secondary" size="sm" onClick={() => setDetailItem(item)}><Paperclip size={14} /> Pieces</Button>
                     <ExportBon affectationId={item.id} />
                     {canEdit && item.statut === 'active' && (
                       <>
+                        <label className="btn btn-secondary btn-sm cursor-pointer">
+                          <Camera size={14} />
+                          <input type="file" accept="image/*,application/pdf" capture="environment" className="hidden" onChange={(e) => uploadDocument(item.id, e)} />
+                        </label>
                         <Button variant="secondary" size="sm" onClick={() => setSigModal(item.id)}><PenLine size={16} /> Signer</Button>
                         <Button variant="secondary" size="sm" onClick={() => handleTerminer(item.id)}><CheckCircle size={16} /> Terminer</Button>
                       </>
@@ -205,6 +227,31 @@ export default function Affectations() {
             </div>
           </form>
         </Modal>
+
+      <Modal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title="Pieces jointes" size="lg">
+        {detailItem && (
+          <div className="space-y-4">
+            <p className="text-sm text-cro-muted">Affectation #{detailItem.id} — {detailItem.materiel?.designation}</p>
+            {detailItem.documents?.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                {detailItem.documents.map((d) => (
+                  <a key={d.id} href={d.url} target="_blank" rel="noreferrer" className="cro-card p-3 text-sm block hover:border-cro-teal">
+                    {d.caption || 'Document'}
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p className="text-cro-muted text-sm">Aucune piece jointe (decision, bon signe, facture...)</p>
+            )}
+            {canEdit && (
+              <label className="btn btn-secondary w-full cursor-pointer justify-center">
+                <Camera size={16} /> Ajouter un document
+                <input type="file" accept="image/*,application/pdf" capture="environment" className="hidden" onChange={(e) => uploadDocument(detailItem.id, e)} />
+              </label>
+            )}
+          </div>
+        )}
+      </Modal>
 
       <Modal isOpen={!!sigModal} onClose={() => setSigModal(null)} title="Signature du beneficiaire">
         <Input label="Nom du signataire" value={signataire} onChange={(e) => setSignataire(e.target.value)} required />

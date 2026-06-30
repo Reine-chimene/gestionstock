@@ -21,6 +21,19 @@ class Settings(BaseSettings):
     upload_dir: str = "./uploads"
     max_upload_size_mb: int = 5
 
+    # Alertes automatiques
+    alert_email_recipients: str = ""  # emails separes par virgule, vide = admins/gestionnaires
+    alert_sms_recipients: str = ""  # numeros +237..., separes par virgule
+    alert_check_interval_hours: int = 6
+
+    # Twilio SMS (optionnel)
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_from_number: str = ""
+
+    # Chemin logo pour PDF (optionnel)
+    logo_path: str = ""
+
     class Config:
         env_file = ".env"
 

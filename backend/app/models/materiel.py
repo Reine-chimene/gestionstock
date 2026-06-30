@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base, pg_enum
@@ -51,6 +51,8 @@ class Materiel(Base):
     matricule: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     etat: Mapped[EtatMateriel] = mapped_column(pg_enum(EtatMateriel, "etatmateriel"), default=EtatMateriel.NEUF)
     quantite: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    seuil_alerte: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    stock_alerte_envoyee: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     valeur_acquisition: Mapped[float | None] = mapped_column(Float, nullable=True)
     date_acquisition: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     caracteristiques: Mapped[str | None] = mapped_column(Text, nullable=True)

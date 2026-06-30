@@ -1,19 +1,32 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, CheckCircle, ArrowRightLeft, Wrench, MapPin, ClipboardList, AlertTriangle, TrendingUp, PackageMinus } from 'lucide-react';
+import { Package, CheckCircle, ArrowRightLeft, Wrench, MapPin, ClipboardList, AlertTriangle, TrendingUp, PackageMinus, Bell } from 'lucide-react';
 import Layout from '../components/Layout';
+import Button from '../components/Button';
 import ExportMenu from '../components/ExportMenu';
 import { LoadingSpinner, StatCard } from '../components/Modal';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { CATEGORIE_LABELS } from '../utils/labels';
 
 export default function Dashboard() {
+  const { canEdit } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [alertMsg, setAlertMsg] = useState('');
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
     api.get('/dashboard/stats').then((r) => setStats(r.data)).finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const runAlerts = async () => {
+    const res = await api.post('/alerts/run');
+    setAlertMsg(`${res.data.maintenance_alertes} maintenance(s), ${res.data.stock_alertes} stock(s) bas`);
+    load();
+  };
 
   if (loading) {
     return <Layout title="Tableau de bord"><LoadingSpinner /></Layout>;
@@ -24,11 +37,17 @@ export default function Dashboard() {
       title="Tableau de bord"
       subtitle={`${stats.total_materiels} equipements suivis — Conseil Regional de l'Ouest`}
       actions={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <ExportMenu baseUrl="/exports/materiels" name="inventaire" />
+          {canEdit && (
+            <Button variant="gold" size="sm" onClick={runAlerts}><Bell size={16} /> Envoyer alertes</Button>
+          )}
         </div>
       }
     >
+      {alertMsg && (
+        <div className="alert-success mb-4">{alertMsg}</div>
+      )}
       {/* Bandeau accueil */}
       <div className="card-accent card-body mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-cro-teal to-cro-teal-light !border-0 text-white">
         <div>
@@ -49,6 +68,7 @@ export default function Dashboard() {
         <Link to="/lieux"><StatCard icon={MapPin} label="Structures" value={stats.total_lieux} iconClass="bg-rose-50 text-rose-600" /></Link>
         <Link to="/inventaire"><StatCard icon={ClipboardList} label="Inventaire" value={stats.inventaire_en_cours} iconClass="bg-cyan-50 text-cyan-600" /></Link>
         <Link to="/maintenance"><StatCard icon={AlertTriangle} label="Rappels" value={stats.maintenances_proches} iconClass="bg-orange-50 text-orange-600" /></Link>
+        <Link to="/materiels"><StatCard icon={AlertTriangle} label="Stock bas" value={stats.stock_bas || 0} iconClass="bg-amber-50 text-amber-700" /></Link>
         <Link to="/destockage"><StatCard icon={PackageMinus} label="Destockages" value={stats.destockages_total} iconClass="bg-stone-100 text-stone-600" /></Link>
         <StatCard icon={PackageMinus} label="Reformes" value={stats.reformes} iconClass="bg-gray-100 text-gray-600" />
         <StatCard icon={AlertTriangle} label="Hors service" value={stats.hors_service} iconClass="bg-red-50 text-red-500" />

@@ -195,6 +195,43 @@ async def send_maintenance_alert(
     date_prevue: str,
 ) -> None:
     subject = f"Rappel maintenance - {matricule}"
-    body = f"Maintenance prevue pour « {materiel_designation} » ({matricule}).\nType : {type_maintenance}\nDate : {date_prevue}"
-    html = f"<p>{body.replace(chr(10), '<br>')}</p>"
+    body = (
+        f"Maintenance prevue pour « {materiel_designation} » ({matricule}).\n"
+        f"Type : {type_maintenance}\nDate : {date_prevue}\n\nConseil Regional de l'Ouest"
+    )
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+        <div style="background:#0B3D3D;color:white;padding:16px;text-align:center;">
+            <h2 style="margin:0;">CRO — Rappel maintenance</h2>
+        </div>
+        <div style="padding:20px;background:#FAF8F4;">
+            <p><strong>{materiel_designation}</strong> ({matricule})</p>
+            <p>Type : {type_maintenance}<br>Date prevue : {date_prevue}</p>
+        </div>
+    </div>"""
+    await _send_email(to_email, subject, body, html)
+
+
+async def send_stock_alert(
+    to_email: str,
+    designation: str,
+    matricule: str,
+    quantite: int,
+    seuil: int,
+) -> None:
+    subject = f"Alerte stock bas - {matricule}"
+    body = (
+        f"Stock bas pour « {designation} » ({matricule}).\n"
+        f"Quantite restante : {quantite}\nSeuil d'alerte : {seuil}\n\nConseil Regional de l'Ouest"
+    )
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+        <div style="background:#B45309;color:white;padding:16px;text-align:center;">
+            <h2 style="margin:0;">CRO — Stock bas</h2>
+        </div>
+        <div style="padding:20px;background:#FFFBEB;">
+            <p><strong>{designation}</strong> ({matricule})</p>
+            <p>Quantite : <strong>{quantite}</strong> / seuil : {seuil}</p>
+        </div>
+    </div>"""
     await _send_email(to_email, subject, body, html)

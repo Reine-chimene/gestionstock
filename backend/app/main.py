@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -8,7 +9,8 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import SessionLocal
 from app.models.user import User, UserRole
-from app.routers import affectations, auth, dashboard, destockage, exports, historique, inventaires, lieux, maintenance, materiels, reports
+from app.routers import affectations, alerts, auth, dashboard, destockage, exports, historique, inventaires, lieux, maintenance, materiels, reports
+from app.services.alert_service import run_scheduled_alerts
 from app.services.email_service import email_dev_fallback, smtp_configured
 from app.services.storage_service import ensure_upload_dirs
 from app.utils.auth import hash_password
@@ -36,6 +38,19 @@ def seed_admin():
         db.close()
 
 
+async def _alert_scheduler():
+    interval = max(1, settings.alert_check_interval_hours) * 3600
+    await asyncio.sleep(60)  # laisser l'API demarrer
+    while True:
+        try:
+            result = await run_scheduled_alerts()
+            if result["maintenance_alertes"] or result["stock_alertes"]:
+                print(f"ALERTES : {result}")
+        except Exception as exc:
+            print(f"Erreur scheduler alertes : {exc}")
+        await asyncio.sleep(interval)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     ensure_upload_dirs()
@@ -43,14 +58,21 @@ async def lifespan(app: FastAPI):
     if email_dev_fallback():
         print("EMAIL : mode dev (codes dans les logs Docker)")
     elif smtp_configured():
-        print(f"EMAIL : envoi actif via {settings.smtp_host} → boite du client")
+        print(f"EMAIL : envoi actif via {settings.smtp_host}")
+    print(f"ALERTES : verification toutes les {settings.alert_check_interval_hours}h")
+    scheduler_task = asyncio.create_task(_alert_scheduler())
     yield
+    scheduler_task.cancel()
+    try:
+        await scheduler_task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(
     title="Gestion de Stock - Conseil Regional de l'Ouest",
     description="Plateforme de gestion du materiel et des affectations du CRO",
-    version="2.0.0",
+    version="2.1.0",
     lifespan=lifespan,
 )
 
@@ -81,8 +103,9 @@ app.include_router(maintenance.router, prefix="/api")
 app.include_router(inventaires.router, prefix="/api")
 app.include_router(destockage.router, prefix="/api")
 app.include_router(historique.router, prefix="/api")
+app.include_router(alerts.router, prefix="/api")
 
 
 @app.get("/")
 def root():
-    return {"message": "API Gestion de Stock - Conseil Regional de l'Ouest", "docs": "/docs", "version": "2.0.0"}
+    return {"message": "API Gestion de Stock - Conseil Regional de l'Ouest", "docs": "/docs", "version": "2.1.0"}

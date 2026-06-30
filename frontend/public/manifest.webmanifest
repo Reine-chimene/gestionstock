@@ -1,0 +1,18 @@
+{
+  "name": "CRO Stock Patrimonial",
+  "short_name": "CRO Stock",
+  "description": "Gestion de stock du Conseil Regional de l'Ouest",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8FAF9",
+  "theme_color": "#042F2E",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo-region-ouest.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

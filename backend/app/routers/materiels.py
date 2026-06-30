@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.constants.catalogues import CATEGORIES_MATERIEL
 from app.database import get_db
+from sqlalchemy import or_, and_
+
+from app.models.affectation import Affectation
+from app.models.destockage import DestockageOperation
 from app.models.historique import ActionHistorique, HistoriqueMouvement, TypeEntite
+from app.models.maintenance import MaintenancePlanifiee
+from app.models.user import User
 from app.models.materiel import CategorieMateriel, EtatMateriel, Materiel
 from app.models.materiel_photo import MaterielPhoto
 from app.models.user import User, UserRole
@@ -17,7 +23,7 @@ from app.utils.auth import get_current_user, require_roles
 
 router = APIRouter(prefix="/materiels", tags=["Materiels"])
 
-MATERIEL_FIELDS = ["designation", "matricule", "etat", "categorie", "numero_serie", "quantite"]
+MATERIEL_FIELDS = ["designation", "matricule", "etat", "categorie", "numero_serie", "quantite", "seuil_alerte"]
 
 
 @router.get("/categories")
@@ -137,14 +143,50 @@ def get_historique(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
+    """Timeline complete : materiel, affectations, maintenance, destockage."""
+    materiel = db.query(Materiel).filter(Materiel.id == materiel_id).first()
+    if not materiel:
+        raise HTTPException(status_code=404, detail="Materiel introuvable.")
+
+    aff_ids = [r[0] for r in db.query(Affectation.id).filter(Affectation.materiel_id == materiel_id).all()]
+    maint_ids = [r[0] for r in db.query(MaintenancePlanifiee.id).filter(MaintenancePlanifiee.materiel_id == materiel_id).all()]
+    dest_ids = [r[0] for r in db.query(DestockageOperation.id).filter(DestockageOperation.materiel_id == materiel_id).all()]
+
+    filters = [
+        and_(HistoriqueMouvement.entity_type == TypeEntite.MATERIEL, HistoriqueMouvement.entity_id == materiel_id),
+    ]
+    if aff_ids:
+        filters.append(and_(HistoriqueMouvement.entity_type == TypeEntite.AFFECTATION, HistoriqueMouvement.entity_id.in_(aff_ids)))
+    if maint_ids:
+        filters.append(and_(HistoriqueMouvement.entity_type == TypeEntite.MAINTENANCE, HistoriqueMouvement.entity_id.in_(maint_ids)))
+    if dest_ids:
+        filters.append(and_(HistoriqueMouvement.entity_type == TypeEntite.DESTOCKAGE, HistoriqueMouvement.entity_id.in_(dest_ids)))
+
     entries = (
         db.query(HistoriqueMouvement)
-        .filter(HistoriqueMouvement.entity_type == TypeEntite.MATERIEL, HistoriqueMouvement.entity_id == materiel_id)
+        .filter(or_(*filters))
         .order_by(HistoriqueMouvement.created_at.desc())
-        .limit(50)
+        .limit(100)
         .all()
     )
-    return [{"id": e.id, "action": e.action.value, "description": e.description, "created_at": e.created_at} for e in entries]
+
+    user_ids = {e.user_id for e in entries if e.user_id}
+    users = {}
+    if user_ids:
+        for u in db.query(User).filter(User.id.in_(user_ids)).all():
+            users[u.id] = f"{u.prenom} {u.nom}"
+
+    return [
+        {
+            "id": e.id,
+            "entity_type": e.entity_type.value,
+            "action": e.action.value,
+            "description": e.description,
+            "user_name": users.get(e.user_id, "Systeme"),
+            "created_at": e.created_at,
+        }
+        for e in entries
+    ]
 
 
 @router.post("", response_model=MaterielResponse, status_code=201)
@@ -196,6 +238,9 @@ def update_materiel(
 
     for key, value in update_data.items():
         setattr(materiel, key, value)
+
+    if materiel.seuil_alerte is not None and materiel.quantite > materiel.seuil_alerte:
+        materiel.stock_alerte_envoyee = False
 
     log_historique(db, TypeEntite.MATERIEL, materiel_id, ActionHistorique.MODIFICATION,
                    f"Materiel modifie : {materiel.matricule}", current_user.id,

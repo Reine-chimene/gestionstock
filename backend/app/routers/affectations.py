@@ -1,19 +1,20 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models.affectation import Affectation, StatutAffectation
+from app.models.affectation_document import AffectationDocument
 from app.models.historique import ActionHistorique, TypeEntite
 from app.models.lieu import Lieu
 from app.models.materiel import EtatMateriel, Materiel
 from app.models.user import User, UserRole
 from app.schemas.affectation import AffectationCreate, AffectationResponse, AffectationUpdate
 from app.services.email_service import send_affectation_notification
-from app.services.storage_service import log_historique, save_base64_image
+from app.services.storage_service import log_historique, save_base64_image, save_upload
 from app.utils.auth import get_current_user, require_roles
 
 router = APIRouter(prefix="/affectations", tags=["Affectations"])
@@ -24,7 +25,25 @@ class SignatureRequest(BaseModel):
     signataire_nom: str
 
 
-@router.get("", response_model=list[AffectationResponse])
+def _serialize_documents(affectation: Affectation) -> list[dict]:
+    return [
+        {
+            "id": d.id,
+            "url": f"/uploads/documents/{d.filename}",
+            "caption": d.caption,
+            "created_at": d.created_at,
+        }
+        for d in (affectation.documents or [])
+    ]
+
+
+def _serialize_affectation(a: Affectation) -> dict:
+    data = AffectationResponse.model_validate(a).model_dump()
+    data["documents"] = _serialize_documents(a)
+    return data
+
+
+@router.get("")
 def list_affectations(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
@@ -32,17 +51,21 @@ def list_affectations(
     lieu_id: int | None = Query(None),
     materiel_id: int | None = Query(None),
 ):
-    query = db.query(Affectation).options(joinedload(Affectation.materiel), joinedload(Affectation.lieu))
+    query = (
+        db.query(Affectation)
+        .options(joinedload(Affectation.materiel), joinedload(Affectation.lieu), joinedload(Affectation.documents))
+    )
     if statut:
         query = query.filter(Affectation.statut == StatutAffectation(statut))
     if lieu_id:
         query = query.filter(Affectation.lieu_id == lieu_id)
     if materiel_id:
         query = query.filter(Affectation.materiel_id == materiel_id)
-    return query.order_by(Affectation.date_debut.desc()).all()
+    items = query.order_by(Affectation.date_debut.desc()).all()
+    return [_serialize_affectation(a) for a in items]
 
 
-@router.get("/{affectation_id}", response_model=AffectationResponse)
+@router.get("/{affectation_id}")
 def get_affectation(
     affectation_id: int,
     db: Annotated[Session, Depends(get_db)],
@@ -50,16 +73,16 @@ def get_affectation(
 ):
     affectation = (
         db.query(Affectation)
-        .options(joinedload(Affectation.materiel), joinedload(Affectation.lieu))
+        .options(joinedload(Affectation.materiel), joinedload(Affectation.lieu), joinedload(Affectation.documents))
         .filter(Affectation.id == affectation_id)
         .first()
     )
     if not affectation:
         raise HTTPException(status_code=404, detail="Affectation introuvable.")
-    return affectation
+    return _serialize_affectation(affectation)
 
 
-@router.post("", response_model=AffectationResponse, status_code=201)
+@router.post("", status_code=201)
 async def create_affectation(
     data: AffectationCreate,
     db: Annotated[Session, Depends(get_db)],
@@ -92,8 +115,9 @@ async def create_affectation(
     db.add(affectation)
     db.flush()
 
-    log_historique(db, TypeEntite.AFFECTATION, affectation.id, ActionHistorique.AFFECTATION,
-                   f"Affectation de {materiel.matricule} a {lieu.nom} pour {data.beneficiaire}", current_user.id)
+    desc = f"Affectation de {materiel.matricule} a {lieu.nom} pour {data.beneficiaire}"
+    log_historique(db, TypeEntite.AFFECTATION, affectation.id, ActionHistorique.AFFECTATION, desc, current_user.id)
+    log_historique(db, TypeEntite.MATERIEL, materiel.id, ActionHistorique.AFFECTATION, desc, current_user.id)
 
     db.commit()
     db.refresh(affectation)
@@ -104,12 +128,13 @@ async def create_affectation(
             notify_email, data.beneficiaire, materiel.designation, materiel.matricule, lieu.nom, data.raison, "nouvelle"
         )
 
-    return (
+    affectation = (
         db.query(Affectation)
-        .options(joinedload(Affectation.materiel), joinedload(Affectation.lieu))
+        .options(joinedload(Affectation.materiel), joinedload(Affectation.lieu), joinedload(Affectation.documents))
         .filter(Affectation.id == affectation.id)
         .first()
     )
+    return _serialize_affectation(affectation)
 
 
 @router.post("/{affectation_id}/signature")
@@ -131,11 +156,58 @@ def add_signature(
 
     log_historique(db, TypeEntite.AFFECTATION, affectation_id, ActionHistorique.SIGNATURE,
                    f"Signature de {data.signataire_nom}", current_user.id)
+    log_historique(db, TypeEntite.MATERIEL, affectation.materiel_id, ActionHistorique.SIGNATURE,
+                   f"Signature affectation #{affectation_id} par {data.signataire_nom}", current_user.id)
     db.commit()
     return {"message": "Signature enregistree", "signataire": data.signataire_nom}
 
 
-@router.patch("/{affectation_id}", response_model=AffectationResponse)
+@router.post("/{affectation_id}/documents", status_code=201)
+async def upload_document(
+    affectation_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles(UserRole.ADMIN, UserRole.GESTIONNAIRE))],
+    file: UploadFile = File(...),
+    caption: str | None = None,
+):
+    affectation = db.query(Affectation).filter(Affectation.id == affectation_id).first()
+    if not affectation:
+        raise HTTPException(404, "Affectation introuvable")
+
+    try:
+        filename, filepath = await save_upload(file, "documents")
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+
+    doc = AffectationDocument(
+        affectation_id=affectation_id,
+        filename=filename,
+        filepath=filepath,
+        caption=caption or file.filename,
+        uploaded_by=current_user.id,
+    )
+    db.add(doc)
+    log_historique(
+        db,
+        TypeEntite.AFFECTATION,
+        affectation_id,
+        ActionHistorique.PHOTO,
+        f"Piece jointe : {doc.caption or filename}",
+        current_user.id,
+    )
+    log_historique(
+        db,
+        TypeEntite.MATERIEL,
+        affectation.materiel_id,
+        ActionHistorique.PHOTO,
+        f"Document affectation #{affectation_id} : {doc.caption or filename}",
+        current_user.id,
+    )
+    db.commit()
+    return {"id": doc.id, "url": f"/uploads/documents/{filename}", "caption": doc.caption}
+
+
+@router.patch("/{affectation_id}")
 async def update_affectation(
     affectation_id: int,
     data: AffectationUpdate,
@@ -144,7 +216,7 @@ async def update_affectation(
 ):
     affectation = (
         db.query(Affectation)
-        .options(joinedload(Affectation.materiel), joinedload(Affectation.lieu))
+        .options(joinedload(Affectation.materiel), joinedload(Affectation.lieu), joinedload(Affectation.documents))
         .filter(Affectation.id == affectation_id)
         .first()
     )
@@ -164,8 +236,9 @@ async def update_affectation(
         materiel = db.query(Materiel).filter(Materiel.id == affectation.materiel_id).first()
         if materiel:
             materiel.etat = EtatMateriel.DISPONIBLE
-        log_historique(db, TypeEntite.AFFECTATION, affectation_id, ActionHistorique.RETOUR,
-                       f"Retour materiel {materiel.matricule if materiel else affectation.materiel_id}", current_user.id)
+        retour_desc = f"Retour materiel {materiel.matricule if materiel else affectation.materiel_id}"
+        log_historique(db, TypeEntite.AFFECTATION, affectation_id, ActionHistorique.RETOUR, retour_desc, current_user.id)
+        log_historique(db, TypeEntite.MATERIEL, affectation.materiel_id, ActionHistorique.RETOUR, retour_desc, current_user.id)
 
         if affectation.lieu and affectation.lieu.email and affectation.materiel:
             await send_affectation_notification(
@@ -179,10 +252,5 @@ async def update_affectation(
             )
 
     db.commit()
-
-    return (
-        db.query(Affectation)
-        .options(joinedload(Affectation.materiel), joinedload(Affectation.lieu))
-        .filter(Affectation.id == affectation_id)
-        .first()
-    )
+    db.refresh(affectation)
+    return _serialize_affectation(affectation)

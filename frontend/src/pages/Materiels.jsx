@@ -12,7 +12,7 @@ import { ETAT_LABELS, CATEGORIE_LABELS, formatDate } from '../utils/labels';
 
 const emptyForm = {
   designation: '', categorie: 'autre', marque: '', modele: '',
-  numero_serie: '', matricule: '', etat: 'neuf', quantite: '1',
+  numero_serie: '', matricule: '', etat: 'neuf', quantite: '1', seuil_alerte: '',
   valeur_acquisition: '', caracteristiques: '', notes: '',
 };
 
@@ -67,6 +67,7 @@ export default function Materiels() {
       matricule: item.matricule,
       etat: item.etat,
       quantite: String(item.quantite ?? 1),
+      seuil_alerte: item.seuil_alerte != null ? String(item.seuil_alerte) : '',
       valeur_acquisition: item.valeur_acquisition || '',
       caracteristiques: item.caracteristiques || '',
       notes: item.notes || '',
@@ -83,6 +84,7 @@ export default function Materiels() {
       const payload = {
         ...form,
         quantite: parseInt(form.quantite, 10) || 1,
+        seuil_alerte: form.seuil_alerte !== '' ? parseInt(form.seuil_alerte, 10) : null,
         valeur_acquisition: form.valeur_acquisition ? parseFloat(form.valeur_acquisition) : null,
       };
       if (editItem) {
@@ -178,6 +180,7 @@ export default function Materiels() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Matricule" value={form.matricule} onChange={update('matricule')} required disabled={!!editItem} />
               <Input label="Quantite en stock" type="number" min="1" value={form.quantite} onChange={update('quantite')} required />
+              <Input label="Seuil d'alerte stock (optionnel)" type="number" min="0" value={form.seuil_alerte} onChange={update('seuil_alerte')} hint="Alerte email/SMS quand le stock atteint ce niveau" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Numero de serie" value={form.numero_serie} onChange={update('numero_serie')} />

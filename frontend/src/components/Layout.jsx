@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Package, MapPin, ArrowRightLeft, Users, LogOut, Menu, X,
-  FileBarChart, ClipboardList, Wrench, PackageMinus, ScrollText,
+  FileBarChart, ClipboardList, Wrench, PackageMinus, ScrollText, QrCode,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Logo from './Logo';
 
 const NAV_MAIN = [
   { to: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
+  { to: '/scan', icon: QrCode, label: 'Scanner QR' },
   { to: '/materiels', icon: Package, label: 'Materiel' },
   { to: '/lieux', icon: MapPin, label: 'Structures' },
   { to: '/affectations', icon: ArrowRightLeft, label: 'Affectations' },

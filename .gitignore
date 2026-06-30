@@ -4,6 +4,7 @@ __pycache__/
 *.db
 .env
 uploads/
+backups/
 node_modules/
 .env.local
 .DS_Store

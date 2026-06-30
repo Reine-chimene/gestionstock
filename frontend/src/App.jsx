@@ -14,6 +14,7 @@ import Rapports from './pages/Rapports';
 import Inventaire from './pages/Inventaire';
 import Maintenance from './pages/Maintenance';
 import Audit from './pages/Audit';
+import Scan from './pages/Scan';
 import Destockage from './pages/Destockage';
 
 function PrivateRoute({ children }) {
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
           <Route path="/materiels" element={<PrivateRoute><Materiels /></PrivateRoute>} />
           <Route path="/materiels/:id" element={<PrivateRoute><MaterielDetail /></PrivateRoute>} />
+          <Route path="/scan" element={<PrivateRoute><Scan /></PrivateRoute>} />
           <Route path="/lieux" element={<PrivateRoute><Lieux /></PrivateRoute>} />
           <Route path="/affectations" element={<PrivateRoute><Affectations /></PrivateRoute>} />
           <Route path="/destockage" element={<PrivateRoute><Destockage /></PrivateRoute>} />
