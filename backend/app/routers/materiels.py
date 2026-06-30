@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session, joinedload
 
+from app.constants.catalogues import CATEGORIES_MATERIEL
 from app.database import get_db
 from app.models.historique import ActionHistorique, HistoriqueMouvement, TypeEntite
 from app.models.materiel import CategorieMateriel, EtatMateriel, Materiel
@@ -17,6 +18,11 @@ from app.utils.auth import get_current_user, require_roles
 router = APIRouter(prefix="/materiels", tags=["Materiels"])
 
 MATERIEL_FIELDS = ["designation", "matricule", "etat", "categorie", "numero_serie", "quantite"]
+
+
+@router.get("/categories")
+def list_categories():
+    return CATEGORIES_MATERIEL
 
 
 @router.get("", response_model=list[MaterielResponse])
@@ -151,6 +157,9 @@ def create_materiel(
     if existing:
         raise HTTPException(status_code=400, detail="Ce matricule existe deja.")
 
+    if data.categorie not in CATEGORIES_MATERIEL:
+        raise HTTPException(status_code=400, detail="Categorie de materiel invalide.")
+
     materiel_data = data.model_dump()
     materiel_data["categorie"] = CategorieMateriel(data.categorie)
     materiel_data["etat"] = EtatMateriel(data.etat)
@@ -179,6 +188,8 @@ def update_materiel(
     old = model_to_dict(materiel, MATERIEL_FIELDS)
     update_data = data.model_dump(exclude_unset=True)
     if "categorie" in update_data:
+        if update_data["categorie"] not in CATEGORIES_MATERIEL:
+            raise HTTPException(status_code=400, detail="Categorie de materiel invalide.")
         update_data["categorie"] = CategorieMateriel(update_data["categorie"])
     if "etat" in update_data:
         update_data["etat"] = EtatMateriel(update_data["etat"])

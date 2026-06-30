@@ -8,6 +8,7 @@ import Modal, { EmptyState, LoadingSpinner, Alert } from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { TYPE_LIEU_LABELS } from '../utils/labels';
+import { formatApiError } from '../utils/apiError';
 
 const emptyForm = {
   nom: '', type_lieu: 'autre', adresse: '', ville: '',
@@ -24,6 +25,7 @@ export default function Lieux() {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [typeOptions, setTypeOptions] = useState(Object.keys(TYPE_LIEU_LABELS));
 
   const load = () => {
     setLoading(true);
@@ -33,6 +35,12 @@ export default function Lieux() {
       .catch(console.error)
       .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    api.get('/lieux/types')
+      .then((res) => setTypeOptions(res.data))
+      .catch(() => setTypeOptions(Object.keys(TYPE_LIEU_LABELS)));
+  }, []);
 
   useEffect(() => { load(); }, [search]);
 
@@ -54,20 +62,32 @@ export default function Lieux() {
     setModalOpen(true);
   };
 
+  const sanitizeForm = () => ({
+    nom: form.nom.trim(),
+    type_lieu: form.type_lieu,
+    adresse: form.adresse.trim() || null,
+    ville: form.ville.trim() || null,
+    responsable: form.responsable.trim() || null,
+    telephone: form.telephone.trim() || null,
+    email: form.email.trim() || null,
+    notes: form.notes.trim() || null,
+  });
+
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
     setError('');
     try {
+      const payload = sanitizeForm();
       if (editItem) {
-        await api.patch(`/lieux/${editItem.id}`, form);
+        await api.patch(`/lieux/${editItem.id}`, payload);
       } else {
-        await api.post('/lieux', form);
+        await api.post('/lieux', payload);
       }
       setModalOpen(false);
       load();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Erreur');
+      setError(formatApiError(err, 'Erreur lors de l\'enregistrement'));
     } finally {
       setSaving(false);
     }
@@ -164,8 +184,8 @@ export default function Lieux() {
           <form onSubmit={handleSave} className="space-y-4">
             <Input label="Nom du lieu" value={form.nom} onChange={update('nom')} required placeholder="Ex: Lycee Bilingue de Bafoussam" />
             <Select label="Type de lieu" value={form.type_lieu} onChange={update('type_lieu')}>
-              {Object.entries(TYPE_LIEU_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
+              {typeOptions.map((k) => (
+                <option key={k} value={k}>{TYPE_LIEU_LABELS[k] || k}</option>
               ))}
             </Select>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -175,7 +195,7 @@ export default function Lieux() {
             <Input label="Adresse" value={form.adresse} onChange={update('adresse')} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Telephone" value={form.telephone} onChange={update('telephone')} />
-              <Input label="Email" type="email" value={form.email} onChange={update('email')} />
+              <Input label="Email" type="text" value={form.email} onChange={update('email')} placeholder="Optionnel" />
             </div>
             <Textarea label="Notes" value={form.notes} onChange={update('notes')} />
             <div className="flex gap-3 pt-2">

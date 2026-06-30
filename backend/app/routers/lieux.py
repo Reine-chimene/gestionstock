@@ -3,13 +3,37 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.constants.catalogues import TYPES_LIEU
 from app.database import get_db
+from app.models.historique import ActionHistorique, TypeEntite
 from app.models.lieu import Lieu, TypeLieu
 from app.models.user import User, UserRole
 from app.schemas.lieu import LieuCreate, LieuResponse, LieuUpdate
+from app.services.storage_service import log_historique
 from app.utils.auth import get_current_user, require_roles
 
 router = APIRouter(prefix="/lieux", tags=["Lieux"])
+
+
+def _parse_type_lieu(value: str) -> TypeLieu:
+    try:
+        return TypeLieu(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Type de lieu invalide : {value}") from exc
+
+
+def _build_lieu_payload(data: LieuCreate | LieuUpdate, *, for_create: bool = False) -> dict:
+    payload = data.model_dump(exclude_unset=not for_create)
+    if "type_lieu" in payload:
+        payload["type_lieu"] = _parse_type_lieu(payload["type_lieu"])
+    elif for_create:
+        payload["type_lieu"] = TypeLieu.AUTRE
+    return payload
+
+
+@router.get("/types")
+def list_types_lieu():
+    return TYPES_LIEU
 
 
 @router.get("", response_model=list[LieuResponse])
@@ -23,7 +47,7 @@ def list_lieux(
     if search:
         query = query.filter(Lieu.nom.ilike(f"%{search}%"))
     if type_lieu:
-        query = query.filter(Lieu.type_lieu == TypeLieu(type_lieu))
+        query = query.filter(Lieu.type_lieu == _parse_type_lieu(type_lieu))
     return query.order_by(Lieu.nom).all()
 
 
@@ -45,8 +69,18 @@ def create_lieu(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(require_roles(UserRole.ADMIN, UserRole.GESTIONNAIRE))],
 ):
-    lieu = Lieu(**data.model_dump(), type_lieu=TypeLieu(data.type_lieu))
+    payload = _build_lieu_payload(data, for_create=True)
+    lieu = Lieu(**payload)
     db.add(lieu)
+    db.flush()
+    log_historique(
+        db,
+        TypeEntite.LIEU,
+        lieu.id,
+        ActionHistorique.CREATION,
+        f"Lieu cree : {lieu.nom} ({lieu.type_lieu.value})",
+        current_user.id,
+    )
     db.commit()
     db.refresh(lieu)
     return lieu
@@ -63,13 +97,18 @@ def update_lieu(
     if not lieu:
         raise HTTPException(status_code=404, detail="Lieu introuvable.")
 
-    update_data = data.model_dump(exclude_unset=True)
-    if "type_lieu" in update_data:
-        update_data["type_lieu"] = TypeLieu(update_data["type_lieu"])
-
+    update_data = _build_lieu_payload(data)
     for key, value in update_data.items():
         setattr(lieu, key, value)
 
+    log_historique(
+        db,
+        TypeEntite.LIEU,
+        lieu.id,
+        ActionHistorique.MODIFICATION,
+        f"Lieu modifie : {lieu.nom}",
+        current_user.id,
+    )
     db.commit()
     db.refresh(lieu)
     return lieu
@@ -86,5 +125,13 @@ def delete_lieu(
         raise HTTPException(status_code=404, detail="Lieu introuvable.")
     if lieu.affectations:
         raise HTTPException(status_code=400, detail="Impossible de supprimer : des affectations existent.")
+    log_historique(
+        db,
+        TypeEntite.LIEU,
+        lieu.id,
+        ActionHistorique.SUPPRESSION,
+        f"Lieu supprime : {lieu.nom}",
+        current_user.id,
+    )
     db.delete(lieu)
     db.commit()

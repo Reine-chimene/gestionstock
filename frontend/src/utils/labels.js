@@ -1,11 +1,12 @@
 export const TYPE_DESTOCKAGE_LABELS = {
   reforme: { label: 'Reforme', variant: 'muted' },
-  vente: { label: 'Vente', variant: 'teal' },
   don: { label: 'Don', variant: 'success' },
   casse: { label: 'Casse', variant: 'error' },
   perte: { label: 'Perte', variant: 'warning' },
   vol: { label: 'Vol', variant: 'error' },
   autre: { label: 'Autre', variant: 'muted' },
+  // vente : conserve pour l'historique, plus proposé a la creation
+  vente: { label: 'Vente (archive)', variant: 'muted' },
 };
 
 export const ETAT_LABELS = {
@@ -24,6 +25,19 @@ export const CATEGORIE_LABELS = {
   equipement_medical: 'Equipement medical',
   bureautique: 'Bureautique',
   electronique: 'Electronique',
+  genie_civil: 'Genie civil / BTP',
+  climatisation: 'Climatisation / Froid',
+  plomberie: 'Plomberie',
+  electricite: 'Electricite',
+  sport: 'Sport et loisirs',
+  agricole: 'Materiel agricole',
+  communication: 'Communication / Reseau',
+  securite: 'Securite',
+  outillage: 'Outillage',
+  consommable: 'Consommables',
+  immobilier: 'Immobilier / Batiment',
+  textile: 'Textile / Uniformes',
+  cuisine: 'Cuisine / Restauration',
   autre: 'Autre',
 };
 
@@ -31,8 +45,12 @@ export const TYPE_LIEU_LABELS = {
   lycee: 'Lycee',
   hopital: 'Hopital',
   ecole: 'Ecole',
+  universite: 'Universite',
   service_cro: 'Service CRO',
   commune: 'Commune',
+  prefecture: 'Prefecture',
+  delegation: 'Delegation',
+  etablissement_public: 'Etablissement public',
   autre: 'Autre',
 };
 

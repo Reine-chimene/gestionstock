@@ -28,6 +28,7 @@ export default function Materiels() {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [categories, setCategories] = useState(Object.keys(CATEGORIE_LABELS));
 
   const load = () => {
     setLoading(true);
@@ -39,6 +40,12 @@ export default function Materiels() {
       .catch(console.error)
       .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    api.get('/materiels/categories')
+      .then((res) => setCategories(res.data))
+      .catch(() => setCategories(Object.keys(CATEGORIE_LABELS)));
+  }, []);
 
   useEffect(() => { load(); }, [search, filterEtat]);
 
@@ -158,8 +165,8 @@ export default function Materiels() {
             <Input label="Designation" value={form.designation} onChange={update('designation')} required />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Select label="Categorie" value={form.categorie} onChange={update('categorie')}>
-                {Object.entries(CATEGORIE_LABELS).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
+                {categories.map((k) => (
+                  <option key={k} value={k}>{CATEGORIE_LABELS[k] || k}</option>
                 ))}
               </Select>
               <Select label="Etat" value={form.etat} onChange={update('etat')}>

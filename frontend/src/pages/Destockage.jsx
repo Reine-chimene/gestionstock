@@ -34,6 +34,7 @@ export default function Destockage() {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [destockTypes, setDestockTypes] = useState(['reforme', 'don', 'casse', 'perte', 'vol', 'autre']);
 
   const load = () => {
     setLoading(true);
@@ -46,6 +47,12 @@ export default function Destockage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    api.get('/destockage/types')
+      .then((res) => setDestockTypes(res.data))
+      .catch(() => setDestockTypes(['reforme', 'don', 'casse', 'perte', 'vol', 'autre']));
+  }, []);
 
   useEffect(() => { load(); }, [filterType]);
 
@@ -117,7 +124,7 @@ export default function Destockage() {
         <EmptyState
           icon={PackageMinus}
           title="Aucun destockage"
-          description="Enregistrez la sortie du materiel reforme, vendu, casse ou perdu."
+          description="Enregistrez la sortie du materiel reforme, donne, casse ou perdu."
           action={canEdit && <Button onClick={openCreate}><Plus size={18} /> Destocker</Button>}
         />
       ) : (
@@ -185,8 +192,8 @@ export default function Destockage() {
           )}
 
           <Select label="Type de destockage" value={form.type_destockage} onChange={update('type_destockage')} required>
-            {Object.entries(TYPE_DESTOCKAGE_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
+            {destockTypes.map((k) => (
+              <option key={k} value={k}>{TYPE_DESTOCKAGE_LABELS[k]?.label || k}</option>
             ))}
           </Select>
 

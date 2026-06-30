@@ -1,5 +1,6 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class MaterielCreate(BaseModel):
@@ -48,6 +49,11 @@ class MaterielResponse(BaseModel):
     notes: str | None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("categorie", "etat", mode="before")
+    @classmethod
+    def enum_to_str(cls, value):
+        return value.value if hasattr(value, "value") else value
 
     class Config:
         from_attributes = True

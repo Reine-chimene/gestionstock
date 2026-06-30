@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
+from app.constants.catalogues import TYPES_DESTOCKAGE_ACTIFS
 from app.database import get_db
 from app.models.affectation import Affectation, StatutAffectation
 from app.models.destockage import DestockageOperation, TypeDestockage
@@ -21,7 +22,7 @@ MATERIEL_FIELDS = ["id", "designation", "matricule", "etat", "categorie", "numer
 
 TYPE_TO_ETAT = {
     TypeDestockage.REFORME: EtatMateriel.REFORME,
-    TypeDestockage.VENTE: EtatMateriel.REFORME,
+    TypeDestockage.VENTE: EtatMateriel.REFORME,  # historique uniquement
     TypeDestockage.DON: EtatMateriel.REFORME,
     TypeDestockage.CASSE: EtatMateriel.HORS_SERVICE,
     TypeDestockage.PERTE: EtatMateriel.HORS_SERVICE,
@@ -69,6 +70,11 @@ def _close_active_maintenances(db: Session, materiel_id: int, user_id: int) -> N
             f"Maintenance annulee avant destockage (maintenance #{maintenance.id})",
             user_id,
         )
+
+
+@router.get("/types")
+def list_types_destockage():
+    return TYPES_DESTOCKAGE_ACTIFS
 
 
 @router.get("", response_model=list[DestockageResponse])
@@ -123,6 +129,12 @@ def create_destockage(
         raise HTTPException(
             status_code=400,
             detail=f"Quantite insuffisante. Stock disponible : {materiel.quantite}.",
+        )
+
+    if data.type_destockage not in TYPES_DESTOCKAGE_ACTIFS:
+        raise HTTPException(
+            status_code=400,
+            detail="Type de destockage non autorise. La vente n'est plus disponible.",
         )
 
     try:

@@ -29,6 +29,7 @@ export default function Audit() {
           <option value="maintenance">Maintenance</option>
           <option value="destockage">Destockage</option>
           <option value="inventaire">Inventaire</option>
+          <option value="lieu">Lieu / Structure</option>
         </select>
       </div>
 

@@ -1,5 +1,13 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel, Field, field_validator
+
+
+def _empty_to_none(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped if stripped else None
 
 
 class LieuCreate(BaseModel):
@@ -12,6 +20,11 @@ class LieuCreate(BaseModel):
     email: str | None = None
     notes: str | None = None
 
+    @field_validator("adresse", "ville", "responsable", "telephone", "email", "notes", mode="before")
+    @classmethod
+    def blank_strings_to_none(cls, value):
+        return _empty_to_none(value)
+
 
 class LieuUpdate(BaseModel):
     nom: str | None = None
@@ -22,6 +35,11 @@ class LieuUpdate(BaseModel):
     telephone: str | None = None
     email: str | None = None
     notes: str | None = None
+
+    @field_validator("nom", "adresse", "ville", "responsable", "telephone", "email", "notes", mode="before")
+    @classmethod
+    def blank_strings_to_none(cls, value):
+        return _empty_to_none(value)
 
 
 class LieuResponse(BaseModel):
@@ -35,6 +53,11 @@ class LieuResponse(BaseModel):
     email: str | None
     notes: str | None
     created_at: datetime
+
+    @field_validator("type_lieu", mode="before")
+    @classmethod
+    def enum_to_str(cls, value):
+        return value.value if hasattr(value, "value") else value
 
     class Config:
         from_attributes = True

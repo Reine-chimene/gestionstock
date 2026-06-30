@@ -11,8 +11,12 @@ class TypeLieu(str, enum.Enum):
     LYCEE = "lycee"
     HOPITAL = "hopital"
     ECOLE = "ecole"
+    UNIVERSITE = "universite"
     SERVICE_CRO = "service_cro"
     COMMUNE = "commune"
+    PREFECTURE = "prefecture"
+    DELEGATION = "delegation"
+    ETABLISSEMENT_PUBLIC = "etablissement_public"
     AUTRE = "autre"
 
 
