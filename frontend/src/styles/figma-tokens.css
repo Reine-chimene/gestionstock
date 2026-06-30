@@ -1,0 +1,20 @@
+/* Design tokens — inspire des kits Figma premium (Untitled UI / Modern Dashboard) */
+
+@theme {
+  --color-cro-teal-dark: #042F2E;
+  --color-cro-teal: #0F766E;
+  --color-cro-teal-light: #14B8A6;
+  --color-cro-teal-soft: #CCFBF1;
+  --color-cro-gold: #D4A017;
+  --color-cro-gold-light: #F5D061;
+  --color-cro-cream: #F8FAF9;
+  --color-cro-sand: #E2E8E7;
+  --color-cro-ink: #0F172A;
+  --color-cro-muted: #64748B;
+  --color-cro-success: #10B981;
+  --color-cro-warning: #F59E0B;
+  --color-cro-error: #EF4444;
+  --color-cro-info: #3B82F6;
+  --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-body: "Plus Jakarta Sans", system-ui, sans-serif;
+}

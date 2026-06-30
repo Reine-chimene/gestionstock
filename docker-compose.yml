@@ -1,0 +1,64 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cro_stock_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cro
+      POSTGRES_PASSWORD: cro_secret_2024
+      POSTGRES_DB: stock_cro
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cro -d stock_cro"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cro_stock_api
+    restart: unless-stopped
+    env_file:
+      - path: ./backend/.env
+        required: false
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://cro:cro_secret_2024@db:5432/stock_cro
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cro_stock_web
+    restart: unless-stopped
+    ports:
+      - "5181:5181"
+    environment:
+      VITE_API_URL: http://localhost:8000
+      VITE_PROXY_TARGET: http://backend:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  postgres_data:
+  uploads_data:

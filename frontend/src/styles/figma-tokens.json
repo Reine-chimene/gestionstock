@@ -1,0 +1,32 @@
+{
+  "source": "CRO Stock — Design System (default)",
+  "syncedAt": null,
+  "note": "Lancez: FIGMA_TOKEN=... FIGMA_FILE_KEY=... node scripts/sync-figma-tokens.mjs",
+  "tokens": {
+    "Primary/900": "#062828",
+    "Primary/700": "#0B3D3D",
+    "Primary/500": "#145454",
+    "Accent/Gold": "#C9A227",
+    "Accent/Gold-Light": "#E8C547",
+    "Surface/Cream": "#FAF8F4",
+    "Surface/Sand": "#EDE8DF",
+    "Surface/White": "#FFFFFF",
+    "Text/Primary": "#1A2E2E",
+    "Text/Muted": "#5C7373",
+    "Text/Inverse": "#FFFFFF",
+    "Status/Success": "#059669",
+    "Status/Warning": "#D97706",
+    "Status/Error": "#DC2626",
+    "Status/Info": "#145454",
+    "Radius/SM": "8px",
+    "Radius/MD": "12px",
+    "Radius/LG": "16px",
+    "Radius/XL": "24px",
+    "Spacing/1": "4px",
+    "Spacing/2": "8px",
+    "Spacing/3": "12px",
+    "Spacing/4": "16px",
+    "Spacing/6": "24px",
+    "Spacing/8": "32px"
+  }
+}

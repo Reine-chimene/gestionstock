@@ -1,0 +1,24 @@
+@import "tailwindcss";
+@import "./figma-tokens.css";
+@import "./components.css";
+
+* { box-sizing: border-box; }
+
+html, body {
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: var(--color-cro-cream);
+  color: var(--color-cro-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .font-display { font-family: var(--font-display); }
+
+input, select, textarea, button { font-family: inherit; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--color-cro-sand); border-radius: 3px; }
