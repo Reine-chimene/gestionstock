@@ -38,7 +38,24 @@ def _serialize_documents(affectation: Affectation) -> list[dict]:
 
 
 def _serialize_affectation(a: Affectation) -> dict:
-    data = AffectationResponse.model_validate(a).model_dump()
+    core = {
+        "id": a.id,
+        "materiel_id": a.materiel_id,
+        "lieu_id": a.lieu_id,
+        "beneficiaire": a.beneficiaire,
+        "raison": a.raison,
+        "statut": a.statut.value if hasattr(a.statut, "value") else a.statut,
+        "date_debut": a.date_debut,
+        "date_fin": a.date_fin,
+        "document_reference": a.document_reference,
+        "notes": a.notes,
+        "signataire_nom": a.signataire_nom,
+        "date_signature": a.date_signature,
+        "created_at": a.created_at,
+        "materiel": a.materiel,
+        "lieu": a.lieu,
+    }
+    data = AffectationResponse.model_validate(core).model_dump()
     data["documents"] = _serialize_documents(a)
     return data
 

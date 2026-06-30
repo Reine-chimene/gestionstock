@@ -8,7 +8,7 @@ from app.constants.catalogues import CATEGORIES_MATERIEL
 from app.database import get_db
 from sqlalchemy import or_, and_
 
-from app.models.affectation import Affectation
+from app.models.affectation import Affectation, StatutAffectation
 from app.models.destockage import DestockageOperation
 from app.models.historique import ActionHistorique, HistoriqueMouvement, TypeEntite
 from app.models.maintenance import MaintenancePlanifiee
@@ -29,6 +29,27 @@ MATERIEL_FIELDS = ["designation", "matricule", "etat", "categorie", "numero_seri
 @router.get("/categories")
 def list_categories():
     return CATEGORIES_MATERIEL
+
+
+@router.get("/affectables", response_model=list[MaterielResponse])
+def list_affectables(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Materiels disponibles pour une nouvelle affectation."""
+    active_ids = [
+        row[0]
+        for row in db.query(Affectation.materiel_id)
+        .filter(Affectation.statut == StatutAffectation.ACTIVE)
+        .all()
+    ]
+    query = db.query(Materiel).filter(
+        Materiel.etat.in_([EtatMateriel.NEUF, EtatMateriel.DISPONIBLE]),
+        Materiel.quantite > 0,
+    )
+    if active_ids:
+        query = query.filter(Materiel.id.notin_(active_ids))
+    return query.order_by(Materiel.designation).all()
 
 
 @router.get("", response_model=list[MaterielResponse])

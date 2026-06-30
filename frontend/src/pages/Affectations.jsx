@@ -10,6 +10,7 @@ import { ExportBon } from '../components/ExportMenu';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { STATUT_AFFECTATION_LABELS, ETAT_LABELS, formatDate } from '../utils/labels';
+import { formatApiError } from '../utils/apiError';
 
 const emptyForm = {
   materiel_id: '', lieu_id: '', beneficiaire: '', raison: '',
@@ -31,32 +32,34 @@ export default function Affectations() {
   const [signataire, setSignataire] = useState('');
   const [detailItem, setDetailItem] = useState(null);
 
+  const loadMaterielsAffectables = () =>
+    api.get('/materiels/affectables')
+      .then((res) => setMateriels(res.data))
+      .catch(() => setMateriels([]));
+
   const load = () => {
     setLoading(true);
     const params = filterStatut ? `?statut=${filterStatut}` : '';
-    Promise.all([
+    Promise.allSettled([
       api.get(`/affectations${params}`),
-      api.get('/materiels'),
+      api.get('/materiels/affectables'),
       api.get('/lieux'),
     ])
       .then(([aff, mat, lieuxRes]) => {
-        setItems(aff.data);
-        setMateriels(
-          mat.data.filter(
-            (m) => ['disponible', 'neuf'].includes(m.etat) && (m.quantite ?? 1) > 0,
-          ),
-        );
-        setLieux(lieuxRes.data);
+        if (aff.status === 'fulfilled') setItems(aff.value.data);
+        else setItems([]);
+        if (mat.status === 'fulfilled') setMateriels(mat.value.data);
+        if (lieuxRes.status === 'fulfilled') setLieux(lieuxRes.value.data);
       })
-      .catch(console.error)
       .finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, [filterStatut]);
 
-  const openCreate = () => {
+  const openCreate = async () => {
     setForm(emptyForm);
     setError('');
+    await loadMaterielsAffectables();
     setModalOpen(true);
   };
 
@@ -67,13 +70,13 @@ export default function Affectations() {
     try {
       await api.post('/affectations', {
         ...form,
-        materiel_id: parseInt(form.materiel_id),
-        lieu_id: parseInt(form.lieu_id),
+        materiel_id: parseInt(form.materiel_id, 10),
+        lieu_id: parseInt(form.lieu_id, 10),
       });
       setModalOpen(false);
       load();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Erreur');
+      setError(formatApiError(err, 'Erreur lors de l\'affectation'));
     } finally {
       setSaving(false);
     }
@@ -85,7 +88,7 @@ export default function Affectations() {
       await api.patch(`/affectations/${id}`, { statut: 'terminee' });
       load();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Erreur');
+      alert(formatApiError(err, 'Erreur'));
     }
   };
 
@@ -186,7 +189,7 @@ export default function Affectations() {
             </Select>
 
             {materiels.length === 0 && (
-              <Alert type="warning" message="Aucun materiel disponible. Ajoutez du materiel d'abord." />
+              <Alert type="warning" message="Aucun materiel disponible (etat Neuf ou Disponible, stock > 0). Verifiez la fiche materiel ou terminez une affectation active." />
             )}
 
             <Select label="Lieu d'affectation" value={form.lieu_id} onChange={update('lieu_id')} required>
