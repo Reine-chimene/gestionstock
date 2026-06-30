@@ -3,13 +3,15 @@ import { Plus, Wrench, Bell, Pencil, Trash2, PenLine, Camera } from 'lucide-reac
 import Layout from '../components/Layout';
 import Button from '../components/Button';
 import Input, { Select, Textarea } from '../components/Input';
-import Modal, { LoadingSpinner, Alert } from '../components/Modal';
+import Modal, { LoadingSpinner, Alert, DraftBanner } from '../components/Modal';
 import SignaturePad from '../components/SignaturePad';
 import Badge from '../components/Badge';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { TYPE_MAINTENANCE_LABELS, formatDate } from '../utils/labels';
 import { formatApiError } from '../utils/apiError';
+import { validateFileSize, UPLOAD_HINT } from '../utils/fileUpload';
+import { useFormDraft, usePersistDraft } from '../utils/useFormDraft';
 
 const emptyForm = { materiel_id: '', type_maintenance: 'preventive', description: '', date_prevue: '', rappel_jours: 7 };
 
@@ -27,6 +29,10 @@ export default function MaintenancePage() {
   const [sigModal, setSigModal] = useState(null);
   const [signataire, setSignataire] = useState('');
   const [detailModal, setDetailModal] = useState(null);
+  const [uploadError, setUploadError] = useState('');
+  const { draftRestored, setDraftRestored, restoreDraft, discardDraft, draftKey } = useFormDraft('maintenance');
+
+  usePersistDraft(draftKey, form, modal && !editItem);
 
   const load = () => {
     setLoading(true);
@@ -47,7 +53,7 @@ export default function MaintenancePage() {
 
   const openCreate = () => {
     setEditItem(null);
-    setForm(emptyForm);
+    setForm(restoreDraft(emptyForm));
     setError('');
     setModal(true);
   };
@@ -84,6 +90,7 @@ export default function MaintenancePage() {
         });
       } else {
         await api.post('/maintenance', payload);
+        discardDraft();
       }
       setModal(false);
       load();
@@ -105,17 +112,28 @@ export default function MaintenancePage() {
 
   const uploadCapture = async (maintenanceId, e) => {
     const file = e.target.files[0];
+    e.target.value = '';
     if (!file) return;
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('caption', file.name);
-    await api.post(`/maintenance/${maintenanceId}/documents`, fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    load();
-    if (detailModal?.id === maintenanceId) {
-      const res = await api.get(`/maintenance/${maintenanceId}`);
-      setDetailModal(res.data);
+    const sizeErr = validateFileSize(file);
+    if (sizeErr) {
+      setUploadError(sizeErr);
+      return;
+    }
+    setUploadError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('caption', file.name);
+      await api.post(`/maintenance/${maintenanceId}/documents`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      load();
+      if (detailModal?.id === maintenanceId) {
+        const res = await api.get(`/maintenance/${maintenanceId}`);
+        setDetailModal(res.data);
+      }
+    } catch (err) {
+      setUploadError(formatApiError(err, 'Erreur upload'));
     }
   };
 
@@ -147,6 +165,7 @@ export default function MaintenancePage() {
         )}
       </div>
       {msg && <Alert type="success" message={msg} onClose={() => setMsg('')} />}
+      {uploadError && <Alert type="error" message={uploadError} onClose={() => setUploadError('')} />}
 
       {loading ? <LoadingSpinner /> : (
         <div className="space-y-3">
@@ -193,6 +212,7 @@ export default function MaintenancePage() {
       )}
 
       <Modal isOpen={modal} onClose={() => setModal(false)} title={editItem ? 'Modifier' : 'Planifier une maintenance'}>
+        <DraftBanner show={draftRestored && !editItem} onDismiss={() => setDraftRestored(false)} />
         {error && <Alert type="error" message={error} />}
         <form onSubmit={handleSave} className="space-y-4">
           {!editItem && (
@@ -233,10 +253,13 @@ export default function MaintenancePage() {
               </div>
             )}
             {canEdit && detailModal.statut !== 'terminee' && (
-              <label className="btn btn-secondary w-full cursor-pointer justify-center">
-                <Camera size={16} /> Ajouter capture (facture, photo...)
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => uploadCapture(detailModal.id, e)} />
-              </label>
+              <>
+                <label className="btn btn-secondary w-full cursor-pointer justify-center">
+                  <Camera size={16} /> Ajouter capture (facture, photo...)
+                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => uploadCapture(detailModal.id, e)} />
+                </label>
+                <p className="text-xs text-cro-muted text-center">{UPLOAD_HINT}</p>
+              </>
             )}
           </div>
         )}

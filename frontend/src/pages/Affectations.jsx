@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Plus, ArrowRightLeft, CheckCircle, PenLine, Camera, Paperclip } from 'lucide-react';
+import { Plus, ArrowRightLeft, CheckCircle, PenLine, Camera, Paperclip, Download } from 'lucide-react';
 import Layout from '../components/Layout';
 import Button from '../components/Button';
 import Input, { Select, Textarea } from '../components/Input';
 import Badge from '../components/Badge';
-import Modal, { EmptyState, LoadingSpinner, Alert } from '../components/Modal';
+import Modal, { EmptyState, LoadingSpinner, Alert, DraftBanner } from '../components/Modal';
 import SignaturePad from '../components/SignaturePad';
-import { ExportBon } from '../components/ExportMenu';
+import ExportMenu, { ExportBon } from '../components/ExportMenu';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { STATUT_AFFECTATION_LABELS, ETAT_LABELS, formatDate } from '../utils/labels';
 import { formatApiError } from '../utils/apiError';
+import { validateFileSize, UPLOAD_HINT, downloadStatic } from '../utils/fileUpload';
+import { useFormDraft, usePersistDraft } from '../utils/useFormDraft';
 
 const emptyForm = {
   materiel_id: '', lieu_id: '', beneficiaire: '', raison: '',
@@ -31,6 +33,10 @@ export default function Affectations() {
   const [sigModal, setSigModal] = useState(null);
   const [signataire, setSignataire] = useState('');
   const [detailItem, setDetailItem] = useState(null);
+  const [uploadError, setUploadError] = useState('');
+  const { draftRestored, setDraftRestored, restoreDraft, discardDraft, draftKey } = useFormDraft('affectations');
+
+  usePersistDraft(draftKey, form, modalOpen);
 
   const loadMaterielsAffectables = () =>
     api.get('/materiels/affectables')
@@ -57,7 +63,7 @@ export default function Affectations() {
   useEffect(() => { load(); }, [filterStatut]);
 
   const openCreate = async () => {
-    setForm(emptyForm);
+    setForm(restoreDraft(emptyForm));
     setError('');
     await loadMaterielsAffectables();
     setModalOpen(true);
@@ -73,6 +79,7 @@ export default function Affectations() {
         materiel_id: parseInt(form.materiel_id, 10),
         lieu_id: parseInt(form.lieu_id, 10),
       });
+      discardDraft();
       setModalOpen(false);
       load();
     } catch (err) {
@@ -104,25 +111,41 @@ export default function Affectations() {
 
   const uploadDocument = async (affectationId, e) => {
     const file = e.target.files[0];
+    e.target.value = '';
     if (!file) return;
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('caption', file.name);
-    await api.post(`/affectations/${affectationId}/documents`, fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    load();
-    if (detailItem?.id === affectationId) {
-      const res = await api.get(`/affectations/${affectationId}`);
-      setDetailItem(res.data);
+    const sizeErr = validateFileSize(file);
+    if (sizeErr) {
+      setUploadError(sizeErr);
+      return;
+    }
+    setUploadError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('caption', file.name);
+      await api.post(`/affectations/${affectationId}/documents`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      load();
+      if (detailItem?.id === affectationId) {
+        const res = await api.get(`/affectations/${affectationId}`);
+        setDetailItem(res.data);
+      }
+    } catch (err) {
+      setUploadError(formatApiError(err, 'Erreur upload'));
     }
   };
 
   return (
     <Layout title="Affectations" subtitle="Suivi du materiel confie aux beneficiaires">
-      {canEdit && (
-        <div className="mb-6"><Button onClick={openCreate}><Plus size={18} /> Nouvelle affectation</Button></div>
-      )}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <ExportMenu baseUrl="/exports/affectations" name="affectations" />
+        {canEdit && (
+          <Button onClick={openCreate}><Plus size={18} /> Nouvelle affectation</Button>
+        )}
+      </div>
+
+      {uploadError && <Alert type="error" message={uploadError} onClose={() => setUploadError('')} />}
 
       <div className="cro-card p-4 mb-6">
         <select value={filterStatut} onChange={(e) => setFilterStatut(e.target.value)}
@@ -177,6 +200,7 @@ export default function Affectations() {
       )}
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Nouvelle affectation" size="lg">
+          <DraftBanner show={draftRestored} onDismiss={() => setDraftRestored(false)} />
           {error && <Alert type="error" message={error} />}
           <form onSubmit={handleSave} className="space-y-4">
             <Select label="Materiel disponible" value={form.materiel_id} onChange={update('materiel_id')} required>
@@ -238,9 +262,15 @@ export default function Affectations() {
             {detailItem.documents?.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
                 {detailItem.documents.map((d) => (
-                  <a key={d.id} href={d.url} target="_blank" rel="noreferrer" className="cro-card p-3 text-sm block hover:border-cro-teal">
-                    {d.caption || 'Document'}
-                  </a>
+                  <div key={d.id} className="cro-card p-3 text-sm flex flex-col gap-2">
+                    <span className="truncate">{d.caption || 'Document'}</span>
+                    <div className="flex gap-2">
+                      <a href={d.url} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm flex-1 text-center">Voir</a>
+                      <Button variant="gold" size="sm" onClick={() => downloadStatic(d.url, d.caption || `doc_${d.id}`)}>
+                        <Download size={14} />
+                      </Button>
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : (
@@ -252,6 +282,7 @@ export default function Affectations() {
                 <input type="file" accept="image/*,application/pdf" capture="environment" className="hidden" onChange={(e) => uploadDocument(detailItem.id, e)} />
               </label>
             )}
+            <p className="text-xs text-cro-muted text-center">{UPLOAD_HINT}</p>
           </div>
         )}
       </Modal>

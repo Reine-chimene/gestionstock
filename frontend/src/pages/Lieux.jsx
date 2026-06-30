@@ -4,11 +4,13 @@ import Layout from '../components/Layout';
 import Button from '../components/Button';
 import Input, { Select, Textarea } from '../components/Input';
 import Badge from '../components/Badge';
-import Modal, { EmptyState, LoadingSpinner, Alert } from '../components/Modal';
+import Modal, { EmptyState, LoadingSpinner, Alert, DraftBanner } from '../components/Modal';
+import ImportMenu from '../components/ImportMenu';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { TYPE_LIEU_LABELS } from '../utils/labels';
 import { formatApiError } from '../utils/apiError';
+import { useFormDraft, usePersistDraft } from '../utils/useFormDraft';
 
 const emptyForm = {
   nom: '', type_lieu: 'autre', adresse: '', ville: '',
@@ -26,6 +28,9 @@ export default function Lieux() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [typeOptions, setTypeOptions] = useState(Object.keys(TYPE_LIEU_LABELS));
+  const { draftRestored, setDraftRestored, restoreDraft, discardDraft, draftKey } = useFormDraft('lieux');
+
+  usePersistDraft(draftKey, form, modalOpen && !editItem);
 
   const load = () => {
     setLoading(true);
@@ -46,7 +51,7 @@ export default function Lieux() {
 
   const openCreate = () => {
     setEditItem(null);
-    setForm(emptyForm);
+    setForm(restoreDraft(emptyForm));
     setError('');
     setModalOpen(true);
   };
@@ -83,6 +88,7 @@ export default function Lieux() {
         await api.patch(`/lieux/${editItem.id}`, payload);
       } else {
         await api.post('/lieux', payload);
+        discardDraft();
       }
       setModalOpen(false);
       load();
@@ -114,9 +120,17 @@ export default function Lieux() {
             <p className="text-slate-500">Lycees, hopitaux, services et autres structures</p>
           </div>
           {canEdit && (
-            <Button onClick={openCreate} size="lg">
-              <Plus size={20} /> Ajouter un lieu
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <ImportMenu
+                importUrl="/lieux/import"
+                templateUrl="/exports/lieux/template"
+                templateName="modele_import_lieux.xlsx"
+                onSuccess={load}
+              />
+              <Button onClick={openCreate} size="lg">
+                <Plus size={20} /> Ajouter un lieu
+              </Button>
+            </div>
           )}
         </div>
 
@@ -180,6 +194,7 @@ export default function Lieux() {
         )}
 
         <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editItem ? 'Modifier le lieu' : 'Nouveau lieu'} size="lg">
+          <DraftBanner show={draftRestored && !editItem} onDismiss={() => setDraftRestored(false)} />
           {error && <Alert type="error" message={error} />}
           <form onSubmit={handleSave} className="space-y-4">
             <Input label="Nom du lieu" value={form.nom} onChange={update('nom')} required placeholder="Ex: Lycee Bilingue de Bafoussam" />

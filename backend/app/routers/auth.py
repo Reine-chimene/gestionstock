@@ -8,11 +8,13 @@ from app.config import settings
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.schemas.user import (
+    ChangePassword,
     ResendCode,
     SetPassword,
     Token,
     UserInvite,
     UserLogin,
+    UserPasswordReset,
     UserRegister,
     UserResponse,
     UserUpdate,
@@ -261,7 +263,10 @@ def update_user(
 
     update_data = data.model_dump(exclude_unset=True)
     if "role" in update_data:
-        update_data["role"] = UserRole(update_data["role"])
+        new_role = UserRole(update_data["role"])
+        if user.role == UserRole.ADMIN and new_role != UserRole.ADMIN:
+            raise HTTPException(status_code=400, detail="Impossible de retirer le dernier administrateur.")
+        update_data["role"] = new_role
 
     for key, value in update_data.items():
         setattr(user, key, value)
@@ -269,3 +274,43 @@ def update_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.post("/users/{user_id}/reset-password")
+def reset_user_password(
+    user_id: int,
+    data: UserPasswordReset,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles(UserRole.ADMIN, UserRole.GESTIONNAIRE))],
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
+
+    if user.role == UserRole.ADMIN and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Seul un administrateur peut modifier le mot de passe d'un admin.")
+
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Utilisez « Mon profil » pour changer votre propre mot de passe.")
+
+    user.hashed_password = hash_password(data.password)
+    user.is_active = True
+    user.is_verified = True
+    db.commit()
+
+    return {"message": f"Mot de passe reinitialise pour {user.email}."}
+
+
+@router.post("/change-password")
+def change_password(
+    data: ChangePassword,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    if not verify_password(data.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Mot de passe actuel incorrect.")
+
+    current_user.hashed_password = hash_password(data.new_password)
+    db.commit()
+
+    return {"message": "Mot de passe modifie avec succes."}

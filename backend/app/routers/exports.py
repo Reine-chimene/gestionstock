@@ -15,10 +15,35 @@ from app.services.export_service import (
     export_materiels_pdf,
     rapport_par_lieu_pdf,
 )
+from app.services.import_service import lieux_import_template, materiel_import_template
 from app.utils.auth import get_current_user, require_roles
 from app.models.user import UserRole
 
 router = APIRouter(prefix="/exports", tags=["Exports"])
+
+
+@router.get("/materiels/template")
+def template_materiels(
+    current_user: Annotated[User, Depends(require_roles(UserRole.ADMIN, UserRole.GESTIONNAIRE))],
+):
+    content = materiel_import_template()
+    return Response(
+        content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=modele_import_materiels.xlsx"},
+    )
+
+
+@router.get("/lieux/template")
+def template_lieux(
+    current_user: Annotated[User, Depends(require_roles(UserRole.ADMIN, UserRole.GESTIONNAIRE))],
+):
+    content = lieux_import_template()
+    return Response(
+        content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=modele_import_lieux.xlsx"},
+    )
 
 
 @router.get("/materiels")

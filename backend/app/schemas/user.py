@@ -69,3 +69,12 @@ class UserUpdate(BaseModel):
     telephone: str | None = None
     role: str | None = None
     is_active: bool | None = None
+
+
+class UserPasswordReset(BaseModel):
+    password: str = Field(..., min_length=6)
+
+
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=6)

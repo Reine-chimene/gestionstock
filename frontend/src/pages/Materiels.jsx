@@ -5,10 +5,13 @@ import Layout from '../components/Layout';
 import Button from '../components/Button';
 import Input, { Select, Textarea, SearchInput } from '../components/Input';
 import Badge from '../components/Badge';
-import Modal, { EmptyState, LoadingSpinner, Alert } from '../components/Modal';
+import Modal, { EmptyState, LoadingSpinner, Alert, DraftBanner } from '../components/Modal';
+import ExportMenu from '../components/ExportMenu';
+import ImportMenu from '../components/ImportMenu';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { ETAT_LABELS, CATEGORIE_LABELS, formatDate } from '../utils/labels';
+import { useFormDraft, usePersistDraft } from '../utils/useFormDraft';
 
 const emptyForm = {
   designation: '', categorie: 'autre', marque: '', modele: '',
@@ -29,6 +32,9 @@ export default function Materiels() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [categories, setCategories] = useState(Object.keys(CATEGORIE_LABELS));
+  const { draftRestored, setDraftRestored, restoreDraft, discardDraft, draftKey } = useFormDraft('materiels');
+
+  usePersistDraft(draftKey, form, modalOpen && !editItem);
 
   const load = () => {
     setLoading(true);
@@ -51,7 +57,7 @@ export default function Materiels() {
 
   const openCreate = () => {
     setEditItem(null);
-    setForm(emptyForm);
+    setForm(restoreDraft(emptyForm));
     setError('');
     setModalOpen(true);
   };
@@ -91,6 +97,7 @@ export default function Materiels() {
         await api.patch(`/materiels/${editItem.id}`, payload);
       } else {
         await api.post('/materiels', payload);
+        discardDraft();
       }
       setModalOpen(false);
       load();
@@ -116,6 +123,17 @@ export default function Materiels() {
   return (
     <Layout title="Materiel" subtitle="Inventaire du patrimoine du CRO">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex flex-wrap gap-2">
+          <ExportMenu baseUrl="/exports/materiels" name="inventaire_materiel" />
+          {canEdit && (
+            <ImportMenu
+              importUrl="/materiels/import"
+              templateUrl="/exports/materiels/template"
+              templateName="modele_import_materiels.xlsx"
+              onSuccess={load}
+            />
+          )}
+        </div>
         {canEdit && (
           <Button onClick={openCreate} className="sm:ml-auto"><Plus size={18} /> Ajouter</Button>
         )}
@@ -162,6 +180,7 @@ export default function Materiels() {
       )}
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editItem ? 'Modifier' : 'Nouveau materiel'} size="lg">
+          <DraftBanner show={draftRestored && !editItem} onDismiss={() => setDraftRestored(false)} />
           {error && <Alert type="error" message={error} />}
           <form onSubmit={handleSave} className="space-y-4">
             <Input label="Designation" value={form.designation} onChange={update('designation')} required />

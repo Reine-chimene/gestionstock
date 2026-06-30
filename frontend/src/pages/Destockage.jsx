@@ -5,10 +5,11 @@ import Layout from '../components/Layout';
 import Button from '../components/Button';
 import Input, { Select, Textarea } from '../components/Input';
 import Badge from '../components/Badge';
-import Modal, { EmptyState, LoadingSpinner, Alert } from '../components/Modal';
+import Modal, { EmptyState, LoadingSpinner, Alert, DraftBanner } from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { TYPE_DESTOCKAGE_LABELS, ETAT_LABELS, formatDate } from '../utils/labels';
+import { useFormDraft, usePersistDraft } from '../utils/useFormDraft';
 
 const emptyForm = {
   materiel_id: '',
@@ -35,6 +36,9 @@ export default function Destockage() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [destockTypes, setDestockTypes] = useState(['reforme', 'don', 'casse', 'perte', 'vol', 'autre']);
+  const { draftRestored, setDraftRestored, restoreDraft, discardDraft, draftKey } = useFormDraft('destockage');
+
+  usePersistDraft(draftKey, form, modalOpen);
 
   const load = () => {
     setLoading(true);
@@ -57,7 +61,7 @@ export default function Destockage() {
   useEffect(() => { load(); }, [filterType]);
 
   const openCreate = () => {
-    setForm(emptyForm);
+    setForm(restoreDraft(emptyForm));
     setError('');
     setModalOpen(true);
   };
@@ -85,6 +89,7 @@ export default function Destockage() {
         notes: form.notes || null,
         valeur_residuelle: form.valeur_residuelle ? parseFloat(form.valeur_residuelle) : null,
       });
+      discardDraft();
       setModalOpen(false);
       load();
     } catch (err) {
@@ -168,6 +173,7 @@ export default function Destockage() {
       )}
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Destocker un materiel">
+        <DraftBanner show={draftRestored} onDismiss={() => setDraftRestored(false)} />
         {error && <Alert type="error" message={error} onClose={() => setError('')} />}
         <form onSubmit={handleSave} className="section-gap">
           <Select label="Materiel" value={form.materiel_id} onChange={handleMaterielChange} required>

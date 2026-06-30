@@ -1,14 +1,16 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.constants.catalogues import TYPES_LIEU
+from app.config import settings
 from app.database import get_db
 from app.models.historique import ActionHistorique, TypeEntite
 from app.models.lieu import Lieu, TypeLieu
 from app.models.user import User, UserRole
 from app.schemas.lieu import LieuCreate, LieuResponse, LieuUpdate
+from app.services.import_service import import_lieux_excel
 from app.services.storage_service import log_historique
 from app.utils.auth import get_current_user, require_roles
 
@@ -34,6 +36,21 @@ def _build_lieu_payload(data: LieuCreate | LieuUpdate, *, for_create: bool = Fal
 @router.get("/types")
 def list_types_lieu():
     return TYPES_LIEU
+
+
+@router.post("/import")
+async def import_lieux(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles(UserRole.ADMIN, UserRole.GESTIONNAIRE))],
+    file: UploadFile = File(...),
+):
+    content = await file.read()
+    max_bytes = settings.max_upload_size_mb * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=400, detail=f"Fichier trop volumineux (max {settings.max_upload_size_mb} Mo).")
+    if not (file.filename or "").lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="Format accepte : Excel (.xlsx)")
+    return import_lieux_excel(db, content, current_user.id)
 
 
 @router.get("", response_model=list[LieuResponse])

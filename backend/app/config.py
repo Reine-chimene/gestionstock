@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     verification_code_expire_minutes: int = 15
     upload_dir: str = "./uploads"
-    max_upload_size_mb: int = 5
+    max_upload_size_mb: int = 4
 
     # Alertes automatiques
     alert_email_recipients: str = ""  # emails separes par virgule, vide = admins/gestionnaires

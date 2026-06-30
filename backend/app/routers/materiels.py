@@ -16,8 +16,10 @@ from app.models.user import User
 from app.models.materiel import CategorieMateriel, EtatMateriel, Materiel
 from app.models.materiel_photo import MaterielPhoto
 from app.models.user import User, UserRole
+from app.config import settings
 from app.schemas.materiel import MaterielCreate, MaterielResponse, MaterielUpdate
-from app.services.qr_service import generate_qr_png
+from app.services.import_service import import_materiels_excel
+from app.services.qr_service import generate_qr_png, parse_qr_payload
 from app.services.storage_service import log_historique, model_to_dict
 from app.utils.auth import get_current_user, require_roles
 
@@ -29,6 +31,21 @@ MATERIEL_FIELDS = ["designation", "matricule", "etat", "categorie", "numero_seri
 @router.get("/categories")
 def list_categories():
     return CATEGORIES_MATERIEL
+
+
+@router.post("/import")
+async def import_materiels(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles(UserRole.ADMIN, UserRole.GESTIONNAIRE))],
+    file: UploadFile = File(...),
+):
+    content = await file.read()
+    max_bytes = settings.max_upload_size_mb * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=400, detail=f"Fichier trop volumineux (max {settings.max_upload_size_mb} Mo).")
+    if not (file.filename or "").lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="Format accepte : Excel (.xlsx)")
+    return import_materiels_excel(db, content, current_user.id)
 
 
 @router.get("/affectables", response_model=list[MaterielResponse])
@@ -74,13 +91,23 @@ def list_materiels(
     return query.order_by(Materiel.designation).all()
 
 
-@router.get("/scan/{matricule}")
+@router.get("/scan/{matricule:path}")
 def scan_matricule(
     matricule: str,
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
-    materiel = db.query(Materiel).filter(Materiel.matricule == matricule).first()
+    from urllib.parse import unquote
+
+    decoded = unquote(matricule).strip()
+    parsed_matricule, parsed_id = parse_qr_payload(decoded)
+    if parsed_id:
+        materiel = db.query(Materiel).filter(Materiel.id == parsed_id).first()
+        if materiel:
+            return MaterielResponse.model_validate(materiel)
+
+    lookup = (parsed_matricule or decoded).strip()
+    materiel = db.query(Materiel).filter(Materiel.matricule.ilike(lookup)).first()
     if not materiel:
         raise HTTPException(404, "Materiel introuvable")
     return MaterielResponse.model_validate(materiel)

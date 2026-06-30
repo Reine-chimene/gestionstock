@@ -11,6 +11,7 @@ import { ExportBon } from '../components/ExportMenu';
 import { ETAT_LABELS, CATEGORIE_LABELS, TYPE_DESTOCKAGE_LABELS, ACTION_LABELS, formatDate } from '../utils/labels';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { validateFileSize, UPLOAD_HINT } from '../utils/fileUpload';
 
 export default function MaterielDetail() {
   const { id } = useParams();
@@ -24,10 +25,14 @@ export default function MaterielDetail() {
   const [loading, setLoading] = useState(true);
   const [qrUrl, setQrUrl] = useState('');
   const [showQr, setShowQr] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrError, setQrError] = useState('');
+  const [fromScan, setFromScan] = useState(false);
   const [destockModal, setDestockModal] = useState(false);
   const [destockForm, setDestockForm] = useState({ type_destockage: 'reforme', quantite: '1', motif: '', document_reference: '', notes: '', valeur_residuelle: '' });
   const [destockError, setDestockError] = useState('');
   const [destockSaving, setDestockSaving] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -42,18 +47,44 @@ export default function MaterielDetail() {
       setAffectations(a.data);
     }).finally(() => setLoading(false));
 
-    if (searchParams.get('scan')) setShowQr(true);
-  }, [id]);
+    setFromScan(searchParams.get('from') === 'scan');
+  }, [id, searchParams]);
 
   const loadQr = async () => {
-    const res = await api.get(`/materiels/${id}/qr`, { responseType: 'blob' });
-    setQrUrl(URL.createObjectURL(res.data));
     setShowQr(true);
+    setQrLoading(true);
+    setQrError('');
+    try {
+      if (qrUrl) URL.revokeObjectURL(qrUrl);
+      const res = await api.get(`/materiels/${id}/qr`, { responseType: 'blob' });
+      if (!res.data?.type?.startsWith('image/')) {
+        throw new Error('Reponse invalide du serveur');
+      }
+      setQrUrl(URL.createObjectURL(res.data));
+    } catch (err) {
+      setQrError(err.response?.data?.detail || err.message || 'Impossible de generer le QR code');
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  const closeQr = () => {
+    setShowQr(false);
+    if (qrUrl) URL.revokeObjectURL(qrUrl);
+    setQrUrl('');
+    setQrError('');
   };
 
   const uploadPhoto = async (e) => {
     const file = e.target.files[0];
+    e.target.value = '';
     if (!file) return;
+    const sizeErr = validateFileSize(file);
+    if (sizeErr) {
+      setUploadError(sizeErr);
+      return;
+    }
+    setUploadError('');
     const fd = new FormData();
     fd.append('file', file);
     await api.post(`/materiels/${id}/photos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -101,6 +132,10 @@ export default function MaterielDetail() {
         <ArrowLeft size={16} /> Retour a la liste
       </Link>
 
+      {fromScan && (
+        <Alert type="success" message="Materiel identifie par scan QR." onClose={() => setFromScan(false)} />
+      )}
+
       <div className="flex flex-wrap gap-2 mb-6">
         <Button variant="gold" size="sm" onClick={loadQr}><QrCode size={16} /> QR Code</Button>
         {canEdit && (
@@ -115,6 +150,9 @@ export default function MaterielDetail() {
           </Button>
         )}
       </div>
+
+      {uploadError && <div className="mb-4"><Alert type="error" message={uploadError} onClose={() => setUploadError('')} /></div>}
+      {canEdit && <p className="text-xs text-cro-muted mb-4">{UPLOAD_HINT}</p>}
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -186,13 +224,20 @@ export default function MaterielDetail() {
         </div>
       </div>
 
-      <Modal isOpen={showQr} onClose={() => setShowQr(false)} title="QR Code materiel">
-        {qrUrl ? (
+      <Modal isOpen={showQr} onClose={closeQr} title="QR Code materiel">
+        {qrLoading ? (
+          <LoadingSpinner />
+        ) : qrError ? (
+          <Alert type="error" message={qrError} />
+        ) : qrUrl ? (
           <div className="text-center">
             <img src={qrUrl} alt="QR Code" className="mx-auto max-w-[250px]" />
             <p className="mt-3 text-cro-muted text-sm">Scannez pour acceder a la fiche {materiel.matricule}</p>
+            <a href={qrUrl} download={`qr_${materiel.matricule}.png`} className="inline-block mt-3">
+              <Button variant="secondary" size="sm">Telecharger le QR</Button>
+            </a>
           </div>
-        ) : <LoadingSpinner />}
+        ) : null}
       </Modal>
 
       <Modal isOpen={destockModal} onClose={() => setDestockModal(false)} title="Destocker ce materiel">

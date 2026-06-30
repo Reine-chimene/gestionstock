@@ -44,6 +44,17 @@ export function Alert({ type = 'info', message, onClose }) {
   );
 }
 
+export function DraftBanner({ show, onDismiss }) {
+  if (!show) return null;
+  return (
+    <Alert
+      type="info"
+      message="Brouillon restaure — vous pouvez continuer la saisie la ou vous vous etiez arrete."
+      onClose={onDismiss}
+    />
+  );
+}
+
 export function PageHeader({ title, subtitle, actions }) {
   return (
     <div className="page-header flex flex-col sm:flex-row sm:items-end justify-between gap-4">

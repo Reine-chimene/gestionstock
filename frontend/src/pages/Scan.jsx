@@ -8,6 +8,36 @@ import { Alert, LoadingSpinner } from '../components/Modal';
 import api from '../services/api';
 import { formatApiError } from '../utils/apiError';
 
+const regionId = 'qr-reader-region';
+
+function parseScanInput(raw) {
+  const value = (raw || '').trim();
+  if (!value) return { matricule: '', id: null };
+
+  if (value.toUpperCase().startsWith('CRO:')) {
+    const parts = value.split(':');
+    const matricule = parts[1]?.trim() || '';
+    const id = parts[2] && /^\d+$/.test(parts[2]) ? parseInt(parts[2], 10) : null;
+    return { matricule, id };
+  }
+
+  if (value.includes('/materiels/')) {
+    const idMatch = value.match(/\/materiels\/(\d+)/);
+    const scanMatch = value.match(/scan=([^&]+)/);
+    return {
+      matricule: scanMatch ? decodeURIComponent(scanMatch[1]) : '',
+      id: idMatch ? parseInt(idMatch[1], 10) : null,
+    };
+  }
+
+  if (value.includes('scan=')) {
+    const m = value.match(/scan=([^&]+)/);
+    if (m) return { matricule: decodeURIComponent(m[1]), id: null };
+  }
+
+  return { matricule: value, id: null };
+}
+
 export default function Scan() {
   const navigate = useNavigate();
   const [matricule, setMatricule] = useState('');
@@ -15,11 +45,10 @@ export default function Scan() {
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef(null);
-  const regionId = 'qr-reader-region';
-
-  useEffect(() => () => { stopScanner(); }, []);
+  const startingRef = useRef(false);
 
   const stopScanner = async () => {
+    startingRef.current = false;
     if (scannerRef.current) {
       try {
         await scannerRef.current.stop();
@@ -32,26 +61,22 @@ export default function Scan() {
     setScanning(false);
   };
 
+  useEffect(() => () => { stopScanner(); }, []);
+
   const goToMateriel = async (code) => {
-    const value = (code || matricule).trim();
-    if (!value) return;
+    const parsed = parseScanInput(code || matricule);
+    if (parsed.id) {
+      navigate(`/materiels/${parsed.id}?from=scan`);
+      return;
+    }
+    const target = parsed.matricule.trim();
+    if (!target) return;
+
     setLoading(true);
     setError('');
     try {
-      let target = value;
-      if (value.includes('/materiels/')) {
-        const match = value.match(/\/materiels\/(\d+)/);
-        if (match) {
-          navigate(`/materiels/${match[1]}?scan=1`);
-          return;
-        }
-      }
-      if (value.includes('scan=')) {
-        const m = value.match(/scan=([^&]+)/);
-        if (m) target = decodeURIComponent(m[1]);
-      }
       const res = await api.get(`/materiels/scan/${encodeURIComponent(target)}`);
-      navigate(`/materiels/${res.data.id}?scan=1`);
+      navigate(`/materiels/${res.data.id}?from=scan`);
     } catch (err) {
       setError(formatApiError(err, 'Materiel introuvable'));
     } finally {
@@ -59,27 +84,46 @@ export default function Scan() {
     }
   };
 
+  useEffect(() => {
+    if (!scanning || scannerRef.current || startingRef.current) return;
+
+    let cancelled = false;
+    startingRef.current = true;
+
+    const start = async () => {
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        if (cancelled) return;
+
+        const scanner = new Html5Qrcode(regionId);
+        scannerRef.current = scanner;
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          async (decoded) => {
+            await stopScanner();
+            goToMateriel(decoded);
+          },
+          () => {},
+        );
+      } catch {
+        if (!cancelled) {
+          setScanning(false);
+          setError('Camera indisponible. Saisissez le matricule manuellement.');
+        }
+      } finally {
+        startingRef.current = false;
+      }
+    };
+
+    start();
+    return () => { cancelled = true; };
+  }, [scanning]);
+
   const startScanner = async () => {
     setError('');
-    try {
-      const { Html5Qrcode } = await import('html5-qrcode');
-      await stopScanner();
-      setScanning(true);
-      const scanner = new Html5Qrcode(regionId);
-      scannerRef.current = scanner;
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        async (decoded) => {
-          await stopScanner();
-          goToMateriel(decoded);
-        },
-        () => {},
-      );
-    } catch (err) {
-      setScanning(false);
-      setError('Camera indisponible. Saisissez le matricule manuellement.');
-    }
+    await stopScanner();
+    setScanning(true);
   };
 
   return (
@@ -91,7 +135,7 @@ export default function Scan() {
           label="Matricule ou code QR"
           value={matricule}
           onChange={(e) => setMatricule(e.target.value)}
-          placeholder="Ex: CRO-2024-001"
+          placeholder="Ex: CRO-001 ou CRO:CRO-001:5"
           onKeyDown={(e) => e.key === 'Enter' && goToMateriel()}
         />
         <div className="flex flex-wrap gap-2">
@@ -110,7 +154,8 @@ export default function Scan() {
 
       {scanning && (
         <div className="cro-card p-4 overflow-hidden">
-          <div id={regionId} className="w-full max-w-md mx-auto" />
+          <div id={regionId} className="w-full max-w-md mx-auto min-h-[280px]" />
+          <LoadingSpinner />
         </div>
       )}
 

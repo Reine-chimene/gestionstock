@@ -2,10 +2,15 @@ import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Package, MapPin, ArrowRightLeft, Users, LogOut, Menu, X,
-  FileBarChart, ClipboardList, Wrench, PackageMinus, ScrollText, QrCode,
+  FileBarChart, ClipboardList, Wrench, PackageMinus, ScrollText, QrCode, KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Logo from './Logo';
+import Modal, { Alert } from './Modal';
+import Button from './Button';
+import Input from './Input';
+import api from '../services/api';
+import { formatApiError } from '../utils/apiError';
 
 const NAV_MAIN = [
   { to: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
@@ -26,8 +31,40 @@ const NAV_GESTION = [
 function SidebarContent({ mobile, onClose }) {
   const { user, logout, canEdit } = useAuth();
   const navigate = useNavigate();
+  const [pwdOpen, setPwdOpen] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwdError, setPwdError] = useState('');
+  const [pwdSuccess, setPwdSuccess] = useState('');
+  const [pwdSaving, setPwdSaving] = useState(false);
   const gestion = NAV_GESTION.filter((i) => !i.editOnly || canEdit);
   const initials = `${user?.prenom?.[0] || ''}${user?.nom?.[0] || ''}`.toUpperCase();
+
+  const submitPassword = async (e) => {
+    e.preventDefault();
+    setPwdError('');
+    setPwdSuccess('');
+    if (pwdForm.next.length < 6) {
+      setPwdError('Le nouveau mot de passe doit contenir au moins 6 caracteres.');
+      return;
+    }
+    if (pwdForm.next !== pwdForm.confirm) {
+      setPwdError('Les mots de passe ne correspondent pas.');
+      return;
+    }
+    setPwdSaving(true);
+    try {
+      await api.post('/auth/change-password', {
+        current_password: pwdForm.current,
+        new_password: pwdForm.next,
+      });
+      setPwdSuccess('Mot de passe modifie.');
+      setPwdForm({ current: '', next: '', confirm: '' });
+    } catch (err) {
+      setPwdError(formatApiError(err, 'Erreur'));
+    } finally {
+      setPwdSaving(false);
+    }
+  };
 
   const renderLinks = (items) => items.map(({ to, icon: Icon, label }) => (
     <NavLink key={to} to={to} end={to === '/'} onClick={mobile ? onClose : undefined}
@@ -66,10 +103,24 @@ function SidebarContent({ mobile, onClose }) {
             <p className="text-white/40 text-xs truncate">{user?.role}</p>
           </div>
         </div>
+        <button type="button" onClick={() => setPwdOpen(true)} className="nav-link w-full !text-white/50 mb-1">
+          <KeyRound size={16} /> Mot de passe
+        </button>
         <button onClick={() => { logout(); navigate('/login'); }} className="nav-link w-full !text-white/50">
           <LogOut size={16} /> Deconnexion
         </button>
       </div>
+
+      <Modal isOpen={pwdOpen} onClose={() => { setPwdOpen(false); setPwdError(''); setPwdSuccess(''); }} title="Changer mon mot de passe">
+        {pwdError && <Alert type="error" message={pwdError} />}
+        {pwdSuccess && <Alert type="success" message={pwdSuccess} />}
+        <form onSubmit={submitPassword} className="space-y-4">
+          <Input label="Mot de passe actuel" type="password" value={pwdForm.current} onChange={(e) => setPwdForm({ ...pwdForm, current: e.target.value })} required />
+          <Input label="Nouveau mot de passe" type="password" value={pwdForm.next} onChange={(e) => setPwdForm({ ...pwdForm, next: e.target.value })} required />
+          <Input label="Confirmer" type="password" value={pwdForm.confirm} onChange={(e) => setPwdForm({ ...pwdForm, confirm: e.target.value })} required />
+          <Button type="submit" className="w-full" loading={pwdSaving}>Enregistrer</Button>
+        </form>
+      </Modal>
     </>
   );
 }
